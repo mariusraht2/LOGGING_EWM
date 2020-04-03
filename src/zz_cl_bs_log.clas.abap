@@ -8,13 +8,7 @@ CLASS zz_cl_bs_log DEFINITION
     METHODS get_protocol
       RETURNING
         VALUE(rt_protocol) TYPE bapirettab .
-    METHODS init_sap_log
-      IMPORTING
-        !io_log TYPE REF TO /scwm/cl_log .
     METHODS log_message .
-    METHODS log_saplog
-      IMPORTING
-        !io_log TYPE REF TO /scwm/cl_log .
     METHODS log_exception
       IMPORTING
         !io_exception TYPE REF TO cx_root .
@@ -57,22 +51,33 @@ CLASS zz_cl_bs_log DEFINITION
         !i_msg_var2 TYPE any OPTIONAL
         !i_msg_var3 TYPE any OPTIONAL
         !i_msg_var4 TYPE any OPTIONAL .
-    METHODS save .
+    METHODS save
+      IMPORTING
+        !iv_created_log TYPE abap_bool DEFAULT abap_true.
     METHODS init
       IMPORTING
-        !iv_object    TYPE balobj_d DEFAULT '/SCWM/WME'
-        !iv_subobject TYPE balsubobj
-        !iv_extnumber TYPE balnrext OPTIONAL
-        !iv_lgnum     TYPE /scwm/lgnum
-        !iv_reset     TYPE abap_bool DEFAULT abap_false
+        !iv_object         TYPE balobj_d DEFAULT '/SCWM/WME'
+        !iv_subobject      TYPE balsubobj
+        !iv_extnumber      TYPE balnrext OPTIONAL
+        !it_extnumber_list TYPE stringtab OPTIONAL
+        !iv_lgnum          TYPE /scwm/lgnum
+        !iv_reset          TYPE abap_bool DEFAULT abap_false
       EXPORTING
-        !ev_created   TYPE abap_bool .
+        !ev_created        TYPE abap_bool .
+
   PROTECTED SECTION.
-  PRIVATE SECTION.
+    TYPES: BEGIN OF s_log_handle,
+             log_id      TYPE char8,
+             log_handle  TYPE balloghndl,
+             log_counter TYPE int2,
+           END OF s_log_handle.
+    TYPES: tt_log_handle TYPE TABLE OF s_log_handle.
+
+    CLASS-DATA instance TYPE REF TO zz_cl_bs_log .
 
     DATA log_header TYPE bal_s_log .
     DATA log_handle TYPE balloghndl .
-    DATA log_handles TYPE ziot_tt_log_handle .
+    DATA log_handles TYPE tt_log_handle .
     DATA message_text TYPE char200 .
     DATA message_type TYPE symsgty .
     DATA content_type TYPE i .
@@ -84,17 +89,19 @@ CLASS zz_cl_bs_log DEFINITION
     DATA message_var3 TYPE symsgv .
     DATA message_var4 TYPE symsgv .
     DATA message_priority TYPE balprobcl .
-    CLASS-DATA instance TYPE REF TO zz_cl_bs_log .
+    DATA message_context TYPE bal_s_cont .
     DATA lgnum TYPE /scwm/lgnum .
     DATA validity_in_days TYPE i VALUE 180 ##NO_TEXT.
     DATA log_protocol TYPE bapirettab .
     DATA log_counter TYPE i .
+    DATA has_error TYPE abap_bool .
+    DATA process_start TYPE timestampl.
+    DATA process_end TYPE timestampl.
+
     CONSTANTS log_type_error TYPE symsgty VALUE 'E' ##NO_TEXT.
     CONSTANTS log_type_warning TYPE symsgty VALUE 'W' ##NO_TEXT.
     CONSTANTS log_type_success TYPE symsgty VALUE 'S' ##NO_TEXT.
     CONSTANTS log_type_info TYPE symsgty VALUE 'I' ##NO_TEXT.
-    DATA sap_log TYPE REF TO /scwm/cl_log .
-    DATA has_error TYPE abap_bool .
     CONSTANTS message_text_id TYPE symsgid VALUE 'BL' ##NO_TEXT.
     CONSTANTS message_text_no TYPE symsgno VALUE '001' ##NO_TEXT.
     CONSTANTS log_process_create TYPE char4 VALUE 'CREA' ##NO_TEXT.
@@ -105,6 +112,12 @@ CLASS zz_cl_bs_log DEFINITION
     METHODS add_msg_to_protocol
       IMPORTING
         !is_msg_handle TYPE balmsghndl .
+    METHODS build_extnumber
+      IMPORTING
+        extnumber      TYPE balnrext OPTIONAL
+        extnumber_list TYPE stringtab OPTIONAL
+      CHANGING
+        log_header     TYPE bal_s_log.
     METHODS error_handling
       IMPORTING
         !iv_process   TYPE char4
@@ -132,6 +145,13 @@ CLASS zz_cl_bs_log DEFINITION
     METHODS add_timestamp
       RETURNING
         VALUE(rv_time) TYPE symsgv .
+    METHODS build_validity
+      CHANGING
+        log_header TYPE bal_s_log.
+    METHODS set_context.
+    METHODS log_duration.
+    METHODS log_line.
+
 ENDCLASS.
 
 
@@ -245,55 +265,111 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
 
   METHOD add_timestamp.
 
-    DATA: lv_timestamp TYPE timestampl,
-          lv_time      TYPE symsgv.
+    DATA: lv_timestamp TYPE timestampl.
 
     GET TIME STAMP FIELD lv_timestamp.
-    WRITE lv_timestamp TO rv_time USING EDIT MASK '==MFSTS'.
+    rv_time = |{ lv_timestamp }|.
+
+    " DD.MM.YYYY, hh:mm:ss.ms
+    rv_time = |{ rv_time+6(2) }.{ rv_time+4(2) }.{ rv_time(4) }, | &
+              |{ rv_time+8(2) }:{ rv_time+10(2) }:{ rv_time+12(2) }{ rv_time+14 }|.
+
+  ENDMETHOD.
+
+
+  METHOD build_validity.
+
+    DATA: ls_log_act TYPE /scwm/log_act.
+
+    DO 2 TIMES.
+
+      CASE sy-index.
+        WHEN 1.
+          " Note: Configure Z-Subobject of Object
+          " /SCWM/WME in Transaction/SCWM/ACTLOG
+          CALL FUNCTION '/SCWM/LOG_ACT_READ_SINGLE'
+            EXPORTING
+              iv_lgnum     = lgnum
+              iv_subobject = log_header-subobject
+            IMPORTING
+              es_log_act   = ls_log_act
+            EXCEPTIONS
+              not_found    = 1
+              OTHERS       = 2.
+
+        WHEN 2.
+          ls_log_act-lgnum     = lgnum.
+          ls_log_act-subobject = log_header-subobject.
+          ls_log_act-validity  = validity_in_days.
+
+      ENDCASE.
+
+      IF    sy-subrc            = 0
+        AND ls_log_act-validity > 0.
+
+        " Append valid expiration date
+        CALL FUNCTION '/SCWM/APP_LOG_EXPIRY_DATE_DET'
+          EXPORTING
+            is_log_act = ls_log_act
+          CHANGING
+            cs_log     = log_header.
+
+        EXIT.
+
+      ENDIF.
+
+    ENDDO.
+
+  ENDMETHOD.
+
+
+  METHOD build_extnumber.
+
+    IF     extnumber IS SUPPLIED
+       AND extnumber IS NOT INITIAL.
+
+      log_header-extnumber = extnumber.
+
+    ELSE.
+
+      SELECT SINGLE * FROM balsubt
+        INTO @DATA(ls_balsubt)
+        WHERE spras     EQ @sy-langu
+          AND object    EQ @log_header-object
+          AND subobject EQ @log_header-subobject.
+
+      log_header-extnumber = ls_balsubt-subobjtxt.
+
+    ENDIF.
 
   ENDMETHOD.
 
 
   METHOD create_message.
 
-    IF sap_log IS BOUND.
+    CALL METHOD set_content
+      EXPORTING
+        iv_msg_txt = iv_msg_txt
+        iv_msg_num = iv_msg_num
+        i_msg_var1 = i_msg_var1
+        i_msg_var2 = i_msg_var2
+        i_msg_var3 = i_msg_var3
+        i_msg_var4 = i_msg_var4.
 
-      CALL METHOD sap_log->add_message2log
-        EXPORTING
-          ip_msgty = message_type
-          ip_msg   = CONV #( iv_msg_txt )
-          ip_msgid = message_class
-          ip_msgno = iv_msg_num
-          ip_msgv1 = i_msg_var1
-          ip_msgv2 = i_msg_var2
-          ip_msgv3 = i_msg_var3
-          ip_msgv4 = i_msg_var4.
+    CALL METHOD set_context.
 
-    ELSE.
+    CALL METHOD set_priority.
 
-      CALL METHOD set_content
-        EXPORTING
-          iv_msg_txt = iv_msg_txt
-          iv_msg_num = iv_msg_num
-          i_msg_var1 = i_msg_var1
-          i_msg_var2 = i_msg_var2
-          i_msg_var3 = i_msg_var3
-          i_msg_var4 = i_msg_var4.
+    ADD 1 TO log_counter.
 
-      CALL METHOD set_priority.
+    CASE content_type.
+      WHEN 1.
+        CALL METHOD add_msg_by_message_text.
 
-      ADD 1 TO log_counter.
+      WHEN 2.
+        CALL METHOD add_msg_by_message_object.
 
-      CASE content_type.
-        WHEN 1.
-          CALL METHOD add_msg_by_message_text.
-
-        WHEN 2.
-          CALL METHOD add_msg_by_message_object.
-
-      ENDCASE.
-
-    ENDIF.
+    ENDCASE.
 
   ENDMETHOD.
 
@@ -339,21 +415,20 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
 
     " Versuch zum alten Log Fehlernachricht bzgl.
     " fehlgeschlagenem Logging hinzuzufügen.
-    MESSAGE e001(ziot_log) INTO DATA(lv_msg).
-    log_message( ).
+    error( iv_msg_txt = |Logging failed - please check log object /IWFND/.| ).
 
 *** Bestehendes Log abschließen und neues für Fehlerbehandlung erzeugen
     CALL METHOD init
       EXPORTING
-        iv_subobject = zwmgc_log_subobject_mfs
+        iv_object    = '/IWFND/'
+        iv_subobject = space
         iv_extnumber = 'Logging: Fehlerbehandlung'
         iv_lgnum     = lgnum
         iv_reset     = abap_true.
 
     CALL METHOD log_caller( ).
 
-    MESSAGE e000(ziot_log) WITH iv_process INTO lv_msg.
-    log_message( ).
+    error( iv_msg_txt = |Log-Process '{ iv_process }' couldn't be executed successfully.| ).
 
 *** Allgemeine Log-Daten loggen
     DATA(lv_msg_txt_gen) = VALUE char200( ).
@@ -368,42 +443,42 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
       WHEN log_process_init.
         CASE iv_subrc.
           WHEN 1.
-            MESSAGE e006(ziot_log) WITH iv_subrc INTO lv_msg.
+            error( iv_msg_txt = |SUBRC: { iv_subrc } - Inconsistent Log-Header Data.| ).
 
           WHEN OTHERS.
-            MESSAGE e007(ziot_log) WITH iv_subrc INTO lv_msg.
+            error( iv_msg_txt = |SUBRC: { iv_subrc } - The log object couldn't be created.| ).
 
         ENDCASE.
 
       WHEN log_process_save.
         CASE iv_subrc.
           WHEN 1.
-            MESSAGE e008(ziot_log) WITH iv_subrc INTO lv_msg.
+            error( iv_msg_txt = |SUBRC: { iv_subrc } - The log object couldn't be found.| ).
 
           WHEN 2.
-            MESSAGE e009(ziot_log) WITH iv_subrc INTO lv_msg.
+            error( iv_msg_txt = |SUBRC: { iv_subrc } - Saving of the logs was rejected.| ).
 
           WHEN 3.
-            MESSAGE e010(ziot_log) WITH iv_subrc INTO lv_msg.
+            error( iv_msg_txt = |SUBRC: { iv_subrc } - Number assignment error while saving the log.| ).
 
           WHEN OTHERS.
-            MESSAGE e011(ziot_log) WITH iv_subrc INTO lv_msg.
+            error( iv_msg_txt = |SUBRC: { iv_subrc } - The log couldn't be saved.| ).
 
         ENDCASE.
 
       WHEN OTHERS.
         CASE sy-subrc.
           WHEN 1.
-            MESSAGE e008(ziot_log) WITH iv_subrc INTO lv_msg.
+            error( iv_msg_txt = |SUBRC: { iv_subrc } - The log object couldn't be found.| ).
 
           WHEN 2.
-            MESSAGE e012(ziot_log) WITH iv_subrc INTO lv_msg.
+            error( iv_msg_txt = |SUBRC: { iv_subrc } - The log message data is inconsistent.| ).
 
           WHEN 3.
-            MESSAGE e013(ziot_log) WITH iv_subrc INTO lv_msg.
+            error( iv_msg_txt = |SUBRC: { iv_subrc } - The log object can't hold additional log messages.| ).
 
           WHEN OTHERS.
-            MESSAGE e014(ziot_log) WITH iv_subrc INTO lv_msg.
+            error( iv_msg_txt = |SUBRC: { iv_subrc } - The message couldn't be added to the log.| ).
 
         ENDCASE.
 
@@ -419,8 +494,7 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
       WHEN log_process_create.
         IF message_text CN ' _0'.
 
-          MESSAGE e015(ziot_log) WITH lv_msg_typ INTO lv_msg.
-          log_message( ).
+          error( iv_msg_txt = |Message (Type: { lv_msg_typ }) with following text couldn't be written into the log:| ).
 
           CALL METHOD error
             EXPORTING
@@ -428,24 +502,19 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
 
         ELSEIF message_number CN ' _0'.
 
-          MESSAGE e003(ziot_log) WITH lv_msg_nr lv_msg_class INTO lv_msg.
-          log_message( ).
-
-          MESSAGE e004(ziot_log) WITH lv_msg_v1 lv_msg_v2 lv_msg_v3 lv_msg_v4 INTO lv_msg.
-          log_message( ).
+          error( iv_msg_txt = |Message with No. { lv_msg_nr } ({ lv_msg_class }) couldn't be written into the log.| ).
+          error( iv_msg_txt = |Variables: '{ lv_msg_v1 }', '{ lv_msg_v2 }', '{ lv_msg_v3 }' and '{ lv_msg_v4 }'.| ).
 
         ELSE.
 
-          MESSAGE e002(ziot_log) WITH iv_process INTO lv_msg.
-          log_message( ).
+          error( iv_msg_txt = |An empty message was tried to be written into the log.| ).
 
         ENDIF.
 
       WHEN log_process_exception.
         DATA(lo_exc_descr) = NEW cl_instance_description( the_subject = io_exception ).
 
-        MESSAGE e005(ziot_log) WITH lo_exc_descr->class_name INTO lv_msg.
-        log_message( ).
+        error( iv_msg_txt = |Exception '{ lo_exc_descr->class_name }' couldn't be written into the log.| ).
 
       WHEN log_process_save.
         " Nichts Besonderes zum Loggen
@@ -519,61 +588,16 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
     log_header-object    = iv_object.
     log_header-subobject = iv_subobject.
 
-    IF    iv_extnumber IS SUPPLIED
-      AND iv_extnumber IS NOT INITIAL.
+    CALL METHOD build_extnumber
+      EXPORTING
+        extnumber      = iv_extnumber
+        extnumber_list = it_extnumber_list
+      CHANGING
+        log_header     = log_header.
 
-      log_header-extnumber = iv_extnumber.
-
-    ELSE.
-
-      SELECT SINGLE * FROM balsubt
-        INTO @DATA(ls_balsubt)
-        WHERE spras     EQ @sy-langu
-          AND object    EQ @log_header-object
-          AND subobject EQ @log_header-subobject.
-
-      log_header-extnumber = ls_balsubt-subobjtxt.
-
-    ENDIF.
-
-    DO 2 TIMES.
-
-      CASE sy-index.
-        WHEN 1.
-          " Note: Configure Z-Subobject of Object
-          " /SCWM/WME in Transaction/SCWM/ACTLOG
-          CALL FUNCTION '/SCWM/LOG_ACT_READ_SINGLE'
-            EXPORTING
-              iv_lgnum     = lgnum
-              iv_subobject = log_header-subobject
-            IMPORTING
-              es_log_act   = ls_log_act
-            EXCEPTIONS
-              not_found    = 1
-              OTHERS       = 2.
-
-        WHEN 2.
-          ls_log_act-lgnum     = lgnum.
-          ls_log_act-subobject = log_header-subobject.
-          ls_log_act-validity  = validity_in_days.
-
-      ENDCASE.
-
-      IF    sy-subrc            = 0
-        AND ls_log_act-validity > 0.
-
-        " Append valid expiration date
-        CALL FUNCTION '/SCWM/APP_LOG_EXPIRY_DATE_DET'
-          EXPORTING
-            is_log_act = ls_log_act
-          CHANGING
-            cs_log     = log_header.
-
-        EXIT.
-
-      ENDIF.
-
-    ENDDO.
+    CALL METHOD build_validity
+      CHANGING
+        log_header = log_header.
 
     CALL FUNCTION 'BAL_LOG_CREATE'
       EXPORTING
@@ -590,18 +614,6 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
         EXPORTING
           iv_process = log_process_init
           iv_subrc   = sy-subrc.
-
-    ENDIF.
-
-  ENDMETHOD.
-
-
-  METHOD init_sap_log.
-
-    IF    io_log IS BOUND
-      AND io_log IS NOT INITIAL.
-
-      sap_log = io_log.
 
     ENDIF.
 
@@ -664,7 +676,7 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
     " 4 - Other messages (not specified by SAP)
     " 5 - Message text is empty
 
-    CALL METHOD ziot_cl_bs_session=>get_callstack
+    CALL METHOD zz_cl_bs_session=>get_callstack
       IMPORTING
         ev_function = lv_function
         ev_method   = lv_method
@@ -745,32 +757,19 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD log_saplog.
-
-    CALL METHOD io_log->get_prot
-      RECEIVING
-        et_protocol = DATA(lt_protocol).
-
-    CALL METHOD log_bapiret
-      EXPORTING
-        it_bapiret = lt_protocol.
-
-  ENDMETHOD.
-
-
   METHOD save.
 
-    DATA: lv_subobject TYPE balsubobj.
+    CHECK iv_created_log EQ abap_true.
 
     IF    instance IS BOUND
       AND has_error EQ abap_false
       AND log_counter > 0.
 
-      message_type = log_type_success.
-      CALL METHOD create_message
-        EXPORTING
-          iv_msg_txt = repeat( val = '-'
-                               occ = 255 ).
+      GET TIME STAMP FIELD process_end.
+
+      CALL METHOD log_duration( ).
+
+      CALL METHOD log_line( ).
 
       DATA(lt_log_handles) = VALUE bal_t_logh( ( log_handle ) ).
 
@@ -883,6 +882,27 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD set_context.
+
+    zz_cl_bs_session=>get_context(
+      IMPORTING
+        ev_program = DATA(lv_program)
+        ev_blockname = DATA(lv_include)
+        ev_line    = DATA(lv_line) ).
+
+    DATA(ls_log_context) = VALUE zcas_s_log_context( program = lv_program
+                                                     include = lv_include
+                                                     line    = lv_line ).
+    message_context-value   = ls_log_context.
+    ##TODO " Global Structure must be created:
+    " program : syrepid;
+    " include : include;
+    " line    : numc10;
+    message_context-tabname = 'ZCAS_S_LOG_CONTEXT'.
+
+  ENDMETHOD.
+
+
   METHOD set_priority.
 
     CASE me->message_type.
@@ -931,6 +951,41 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
         i_msg_var2 = i_msg_var2
         i_msg_var3 = i_msg_var3
         i_msg_var4 = i_msg_var4.
+
+  ENDMETHOD.
+
+
+  METHOD log_duration.
+
+    IF    process_end   IS NOT INITIAL
+      AND process_start IS NOT INITIAL.
+
+      TRY.
+          DATA(lv_duration) = cl_abap_tstmp=>subtract( tstmp1 = process_end
+                                                       tstmp2 = process_start ).
+
+          message_type = log_type_success.
+
+          CALL METHOD create_message
+            EXPORTING
+              iv_msg_txt = |Process Duration: { lv_duration } Seconds|.
+
+        CATCH cx_root.
+      ENDTRY.
+
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD log_line.
+
+    message_type = log_type_success.
+
+    CALL METHOD create_message
+      EXPORTING
+        iv_msg_txt = repeat( val = '-'
+                             occ = 255 ).
 
   ENDMETHOD.
 ENDCLASS.
