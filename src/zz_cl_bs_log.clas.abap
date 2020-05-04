@@ -4,17 +4,23 @@ CLASS zz_cl_bs_log DEFINITION
   CREATE PUBLIC .
 
   PUBLIC SECTION.
+    CLASS-METHODS get_instance
+      RETURNING
+        VALUE(ro_instance) TYPE REF TO zz_cl_bs_log .
 
     METHODS get_protocol
       RETURNING
         VALUE(rt_protocol) TYPE bapirettab .
+    METHODS init_sap_log
+      IMPORTING
+        !io_log TYPE REF TO /scwm/cl_log .
     METHODS log_message .
+    METHODS log_saplog
+      IMPORTING
+        !io_log TYPE REF TO /scwm/cl_log .
     METHODS log_exception
       IMPORTING
         !io_exception TYPE REF TO cx_root .
-    CLASS-METHODS get_instance
-      RETURNING
-        VALUE(ro_instance) TYPE REF TO zz_cl_bs_log .
     METHODS log_bapiret
       IMPORTING
         !it_bapiret TYPE bapirettab .
@@ -71,13 +77,13 @@ CLASS zz_cl_bs_log DEFINITION
              log_handle  TYPE balloghndl,
              log_counter TYPE int2,
            END OF s_log_handle.
-    TYPES: tt_log_handle TYPE TABLE OF s_log_handle.
+    TYPES: t_log_stack TYPE TABLE OF REF TO ziot_cl_bs_log WITH DEFAULT KEY.
 
-    CLASS-DATA instance TYPE REF TO zz_cl_bs_log .
+    CLASS-DATA: instance  TYPE REF TO zz_cl_bs_log,
+                log_stack TYPE t_log_stack.
 
     DATA log_header TYPE bal_s_log .
     DATA log_handle TYPE balloghndl .
-    DATA log_handles TYPE tt_log_handle .
     DATA message_text TYPE char200 .
     DATA message_type TYPE symsgty .
     DATA content_type TYPE i .
@@ -94,6 +100,7 @@ CLASS zz_cl_bs_log DEFINITION
     DATA validity_in_days TYPE i VALUE 180 ##NO_TEXT.
     DATA log_protocol TYPE bapirettab .
     DATA log_counter TYPE i .
+    DATA sap_log TYPE REF TO /scwm/cl_log .
     DATA has_error TYPE abap_bool .
     DATA process_start TYPE timestampl.
     DATA process_end TYPE timestampl.
@@ -620,6 +627,18 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD init_sap_log.
+
+    IF    io_log IS BOUND
+      AND io_log IS NOT INITIAL.
+
+      sap_log = io_log.
+
+    ENDIF.
+
+  ENDMETHOD.
+
+
   METHOD log_bapiret.
 
     DATA: lv_msg_txt TYPE c LENGTH 200.
@@ -753,6 +772,21 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
         i_msg_var2 = sy-msgv2
         i_msg_var3 = sy-msgv3
         i_msg_var4 = sy-msgv4.
+
+  ENDMETHOD.
+
+
+  METHOD log_saplog.
+
+    CHECK io_log IS BOUND.
+
+    CALL METHOD io_log->get_prot
+      RECEIVING
+        et_protocol = DATA(lt_protocol).
+
+    CALL METHOD log_bapiret
+      EXPORTING
+        it_bapiret = lt_protocol.
 
   ENDMETHOD.
 
