@@ -26,37 +26,37 @@ CLASS zz_cl_bs_log DEFINITION
         !it_bapiret TYPE bapirettab .
     METHODS warning
       IMPORTING
-        !iv_msg_txt TYPE char200 OPTIONAL
-        !iv_msg_num TYPE symsgno OPTIONAL
-        !i_msg_var1 TYPE any OPTIONAL
-        !i_msg_var2 TYPE any OPTIONAL
-        !i_msg_var3 TYPE any OPTIONAL
-        !i_msg_var4 TYPE any OPTIONAL .
+        !msgtx TYPE char200 OPTIONAL
+        !msgno TYPE symsgno OPTIONAL
+        !msgv1 TYPE any OPTIONAL
+        !msgv2 TYPE any OPTIONAL
+        !msgv3 TYPE any OPTIONAL
+        !msgv4 TYPE any OPTIONAL .
     METHODS log_caller .
     METHODS info
       IMPORTING
-        !iv_msg_txt TYPE char200 OPTIONAL
-        !iv_msg_num TYPE symsgno OPTIONAL
-        !i_msg_var1 TYPE any OPTIONAL
-        !i_msg_var2 TYPE any OPTIONAL
-        !i_msg_var3 TYPE any OPTIONAL
-        !i_msg_var4 TYPE any OPTIONAL .
+        !msgtx TYPE char200 OPTIONAL
+        !msgno TYPE symsgno OPTIONAL
+        !msgv1 TYPE any OPTIONAL
+        !msgv2 TYPE any OPTIONAL
+        !msgv3 TYPE any OPTIONAL
+        !msgv4 TYPE any OPTIONAL .
     METHODS success
       IMPORTING
-        !iv_msg_txt TYPE char200 OPTIONAL
-        !iv_msg_num TYPE symsgno OPTIONAL
-        !i_msg_var1 TYPE any OPTIONAL
-        !i_msg_var2 TYPE any OPTIONAL
-        !i_msg_var3 TYPE any OPTIONAL
-        !i_msg_var4 TYPE any OPTIONAL .
+        !msgtx TYPE char200 OPTIONAL
+        !msgno TYPE symsgno OPTIONAL
+        !msgv1 TYPE any OPTIONAL
+        !msgv2 TYPE any OPTIONAL
+        !msgv3 TYPE any OPTIONAL
+        !msgv4 TYPE any OPTIONAL .
     METHODS error
       IMPORTING
-        !iv_msg_txt TYPE char200 OPTIONAL
-        !iv_msg_num TYPE symsgno OPTIONAL
-        !i_msg_var1 TYPE any OPTIONAL
-        !i_msg_var2 TYPE any OPTIONAL
-        !i_msg_var3 TYPE any OPTIONAL
-        !i_msg_var4 TYPE any OPTIONAL .
+        !msgtx TYPE char200 OPTIONAL
+        !msgno TYPE symsgno OPTIONAL
+        !msgv1 TYPE any OPTIONAL
+        !msgv2 TYPE any OPTIONAL
+        !msgv3 TYPE any OPTIONAL
+        !msgv4 TYPE any OPTIONAL .
     METHODS save
       IMPORTING
         !iv_created_log TYPE abap_bool DEFAULT abap_true.
@@ -104,6 +104,7 @@ CLASS zz_cl_bs_log DEFINITION
     DATA has_error TYPE abap_bool .
     DATA process_start TYPE timestampl.
     DATA process_end TYPE timestampl.
+    DATA caller TYPE c LENGTH 200.
 
     CONSTANTS log_type_error TYPE symsgty VALUE 'E' ##NO_TEXT.
     CONSTANTS log_type_warning TYPE symsgty VALUE 'W' ##NO_TEXT.
@@ -133,20 +134,20 @@ CLASS zz_cl_bs_log DEFINITION
     METHODS set_priority .
     METHODS set_content
       IMPORTING
-        !iv_msg_txt TYPE char200
-        !iv_msg_num TYPE symsgno
-        !i_msg_var1 TYPE any
-        !i_msg_var2 TYPE any
-        !i_msg_var3 TYPE any
-        !i_msg_var4 TYPE any .
+        !msgtx TYPE char200
+        !msgno TYPE symsgno
+        !msgv1 TYPE any
+        !msgv2 TYPE any
+        !msgv3 TYPE any
+        !msgv4 TYPE any .
     METHODS create_message
       IMPORTING
-        !iv_msg_txt TYPE char200 OPTIONAL
-        !iv_msg_num TYPE symsgno OPTIONAL
-        !i_msg_var1 TYPE any OPTIONAL
-        !i_msg_var2 TYPE any OPTIONAL
-        !i_msg_var3 TYPE any OPTIONAL
-        !i_msg_var4 TYPE any OPTIONAL .
+        !msgtx TYPE char200 OPTIONAL
+        !msgno TYPE symsgno OPTIONAL
+        !msgv1 TYPE any OPTIONAL
+        !msgv2 TYPE any OPTIONAL
+        !msgv3 TYPE any OPTIONAL
+        !msgv4 TYPE any OPTIONAL .
     METHODS add_msg_by_message_text .
     METHODS add_msg_by_message_object .
     METHODS add_timestamp
@@ -158,6 +159,7 @@ CLASS zz_cl_bs_log DEFINITION
     METHODS set_context.
     METHODS log_duration.
     METHODS log_line.
+    METHODS det_caller.
 
 ENDCLASS.
 
@@ -356,12 +358,12 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
 
     CALL METHOD set_content
       EXPORTING
-        iv_msg_txt = iv_msg_txt
-        iv_msg_num = iv_msg_num
-        i_msg_var1 = i_msg_var1
-        i_msg_var2 = i_msg_var2
-        i_msg_var3 = i_msg_var3
-        i_msg_var4 = i_msg_var4.
+        msgtx = msgtx
+        msgno = msgno
+        msgv1 = msgv1
+        msgv2 = msgv2
+        msgv3 = msgv3
+        msgv4 = msgv4.
 
     CALL METHOD set_context.
 
@@ -387,12 +389,12 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
 
     CALL METHOD me->create_message
       EXPORTING
-        iv_msg_txt = iv_msg_txt
-        iv_msg_num = iv_msg_num
-        i_msg_var1 = i_msg_var1
-        i_msg_var2 = i_msg_var2
-        i_msg_var3 = i_msg_var3
-        i_msg_var4 = i_msg_var4.
+        msgtx = msgtx
+        msgno = msgno
+        msgv1 = msgv1
+        msgv2 = msgv2
+        msgv3 = msgv3
+        msgv4 = msgv4.
 
   ENDMETHOD.
 
@@ -422,7 +424,7 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
 
     " Versuch zum alten Log Fehlernachricht bzgl.
     " fehlgeschlagenem Logging hinzuzufügen.
-    error( iv_msg_txt = |Logging failed - please check log object /IWFND/.| ).
+    error( msgtx = |Logging failed - please check log object /IWFND/.| ).
 
 *** Bestehendes Log abschließen und neues für Fehlerbehandlung erzeugen
     CALL METHOD init
@@ -435,7 +437,7 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
 
     CALL METHOD log_caller( ).
 
-    error( iv_msg_txt = |Log-Process '{ iv_process }' couldn't be executed successfully.| ).
+    error( msgtx = |Log-Process '{ iv_process }' couldn't be executed successfully.| ).
 
 *** Allgemeine Log-Daten loggen
     DATA(lv_msg_txt_gen) = VALUE char200( ).
@@ -444,48 +446,48 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
 
     CALL METHOD error
       EXPORTING
-        iv_msg_txt = lv_msg_txt_gen.
+        msgtx = lv_msg_txt_gen.
 
     CASE iv_process.
       WHEN log_process_init.
         CASE iv_subrc.
           WHEN 1.
-            error( iv_msg_txt = |SUBRC: { iv_subrc } - Inconsistent Log-Header Data.| ).
+            error( msgtx = |SUBRC: { iv_subrc } - Inconsistent Log-Header Data.| ).
 
           WHEN OTHERS.
-            error( iv_msg_txt = |SUBRC: { iv_subrc } - The log object couldn't be created.| ).
+            error( msgtx = |SUBRC: { iv_subrc } - The log object couldn't be created.| ).
 
         ENDCASE.
 
       WHEN log_process_save.
         CASE iv_subrc.
           WHEN 1.
-            error( iv_msg_txt = |SUBRC: { iv_subrc } - The log object couldn't be found.| ).
+            error( msgtx = |SUBRC: { iv_subrc } - The log object couldn't be found.| ).
 
           WHEN 2.
-            error( iv_msg_txt = |SUBRC: { iv_subrc } - Saving of the logs was rejected.| ).
+            error( msgtx = |SUBRC: { iv_subrc } - Saving of the logs was rejected.| ).
 
           WHEN 3.
-            error( iv_msg_txt = |SUBRC: { iv_subrc } - Number assignment error while saving the log.| ).
+            error( msgtx = |SUBRC: { iv_subrc } - Number assignment error while saving the log.| ).
 
           WHEN OTHERS.
-            error( iv_msg_txt = |SUBRC: { iv_subrc } - The log couldn't be saved.| ).
+            error( msgtx = |SUBRC: { iv_subrc } - The log couldn't be saved.| ).
 
         ENDCASE.
 
       WHEN OTHERS.
         CASE sy-subrc.
           WHEN 1.
-            error( iv_msg_txt = |SUBRC: { iv_subrc } - The log object couldn't be found.| ).
+            error( msgtx = |SUBRC: { iv_subrc } - The log object couldn't be found.| ).
 
           WHEN 2.
-            error( iv_msg_txt = |SUBRC: { iv_subrc } - The log message data is inconsistent.| ).
+            error( msgtx = |SUBRC: { iv_subrc } - The log message data is inconsistent.| ).
 
           WHEN 3.
-            error( iv_msg_txt = |SUBRC: { iv_subrc } - The log object can't hold additional log messages.| ).
+            error( msgtx = |SUBRC: { iv_subrc } - The log object can't hold additional log messages.| ).
 
           WHEN OTHERS.
-            error( iv_msg_txt = |SUBRC: { iv_subrc } - The message couldn't be added to the log.| ).
+            error( msgtx = |SUBRC: { iv_subrc } - The message couldn't be added to the log.| ).
 
         ENDCASE.
 
@@ -501,27 +503,27 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
       WHEN log_process_create.
         IF message_text CN ' _0'.
 
-          error( iv_msg_txt = |Message (Type: { lv_msg_typ }) with following text couldn't be written into the log:| ).
+          error( msgtx = |Message (Type: { lv_msg_typ }) with following text couldn't be written into the log:| ).
 
           CALL METHOD error
             EXPORTING
-              iv_msg_txt = lv_msg_txt.
+              msgtx = lv_msg_txt.
 
         ELSEIF message_number CN ' _0'.
 
-          error( iv_msg_txt = |Message with No. { lv_msg_nr } ({ lv_msg_class }) couldn't be written into the log.| ).
-          error( iv_msg_txt = |Variables: '{ lv_msg_v1 }', '{ lv_msg_v2 }', '{ lv_msg_v3 }' and '{ lv_msg_v4 }'.| ).
+          error( msgtx = |Message with No. { lv_msg_nr } ({ lv_msg_class }) couldn't be written into the log.| ).
+          error( msgtx = |Variables: '{ lv_msg_v1 }', '{ lv_msg_v2 }', '{ lv_msg_v3 }' and '{ lv_msg_v4 }'.| ).
 
         ELSE.
 
-          error( iv_msg_txt = |An empty message was tried to be written into the log.| ).
+          error( msgtx = |An empty message was tried to be written into the log.| ).
 
         ENDIF.
 
       WHEN log_process_exception.
         DATA(lo_exc_descr) = NEW cl_instance_description( the_subject = io_exception ).
 
-        error( iv_msg_txt = |Exception '{ lo_exc_descr->class_name }' couldn't be written into the log.| ).
+        error( msgtx = |Exception '{ lo_exc_descr->class_name }' couldn't be written into the log.| ).
 
       WHEN log_process_save.
         " Nichts Besonderes zum Loggen
@@ -565,35 +567,26 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
 
     CALL METHOD me->create_message
       EXPORTING
-        iv_msg_txt = iv_msg_txt
-        iv_msg_num = iv_msg_num
-        i_msg_var1 = i_msg_var1
-        i_msg_var2 = i_msg_var2
-        i_msg_var3 = i_msg_var3
-        i_msg_var4 = i_msg_var4.
+        msgtx = msgtx
+        msgno = msgno
+        msgv1 = msgv1
+        msgv2 = msgv2
+        msgv3 = msgv3
+        msgv4 = msgv4.
 
   ENDMETHOD.
 
 
   METHOD init.
 
-    DATA: ls_log_act TYPE /scwm/log_act.
-
-    IF    iv_reset EQ abap_true
-      AND log_header IS NOT INITIAL.
-
-      CALL METHOD save( ).
-
-    ENDIF.
-
-    " Nur nur neues Log erzeugen, wenn noch nicht vorhanden
-    CHECK log_header IS INITIAL.
-
-    ev_created = abap_true.
+    GET TIME STAMP FIELD process_start.
 
     lgnum                = iv_lgnum.
     log_header-object    = iv_object.
     log_header-subobject = iv_subobject.
+
+    CLEAR: caller.
+    CALL METHOD det_caller.
 
     CALL METHOD build_extnumber
       EXPORTING
@@ -601,10 +594,6 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
         extnumber_list = it_extnumber_list
       CHANGING
         log_header     = log_header.
-
-    CALL METHOD build_validity
-      CHANGING
-        log_header = log_header.
 
     CALL FUNCTION 'BAL_LOG_CREATE'
       EXPORTING
@@ -623,6 +612,8 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
           iv_subrc   = sy-subrc.
 
     ENDIF.
+
+    CALL METHOD log_caller.
 
   ENDMETHOD.
 
@@ -655,22 +646,22 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
         WHEN 'E'.
           CALL METHOD me->error
             EXPORTING
-              iv_msg_txt = lv_msg_txt.
+              msgtx = lv_msg_txt.
 
         WHEN 'W'.
           CALL METHOD me->warning
             EXPORTING
-              iv_msg_txt = lv_msg_txt.
+              msgtx = lv_msg_txt.
 
         WHEN 'S'.
           CALL METHOD me->success
             EXPORTING
-              iv_msg_txt = lv_msg_txt.
+              msgtx = lv_msg_txt.
 
         WHEN 'I'.
           CALL METHOD me->info
             EXPORTING
-              iv_msg_txt = lv_msg_txt.
+              msgtx = lv_msg_txt.
 
       ENDCASE.
 
@@ -695,38 +686,14 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
     " 4 - Other messages (not specified by SAP)
     " 5 - Message text is empty
 
-    CALL METHOD zz_cl_bs_session=>get_callstack
-      IMPORTING
-        ev_function = lv_function
-        ev_method   = lv_method
-        ev_class    = lv_class
-        ev_report   = lv_report.
+    det_caller( ).
 
-    IF lv_function IS NOT INITIAL.
+    message_type = log_type_success.
+    lv_msg_txt = |***** { caller } at { add_timestamp( ) }*****|.
 
-      lv_msg_txt = lv_function.
-
-    ELSEIF lv_class IS NOT INITIAL
-      AND lv_method IS NOT INITIAL.
-
-      CONCATENATE lv_class '=>' lv_method INTO lv_msg_txt.
-
-    ELSEIF lv_report IS NOT INITIAL.
-
-      lv_msg_txt = lv_report.
-
-    ELSE.
-
-      RETURN.
-
-    ENDIF.
-
-    me->message_type = 'S'.
-    lv_msg_txt = '*****' && ` ` && lv_msg_txt && ` ` && 'at' && ` ` && add_timestamp( ) && ` ` && '*****'.
-
-    CALL METHOD me->create_message
+    CALL METHOD create_message
       EXPORTING
-        iv_msg_txt = lv_msg_txt.
+        msgtx = lv_msg_txt.
 
   ENDMETHOD.
 
@@ -750,12 +717,12 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
 
     CALL METHOD me->create_message
       EXPORTING
-        iv_msg_txt = message_text
-        iv_msg_num = message_number
-        i_msg_var1 = message_var1
-        i_msg_var2 = message_var2
-        i_msg_var3 = message_var3
-        i_msg_var4 = message_var4.
+        msgtx = message_text
+        msgno = message_number
+        msgv1 = message_var1
+        msgv2 = message_var2
+        msgv3 = message_var3
+        msgv4 = message_var4.
 
   ENDMETHOD.
 
@@ -767,11 +734,11 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
 
     CALL METHOD create_message
       EXPORTING
-        iv_msg_num = sy-msgno
-        i_msg_var1 = sy-msgv1
-        i_msg_var2 = sy-msgv2
-        i_msg_var3 = sy-msgv3
-        i_msg_var4 = sy-msgv4.
+        msgno = sy-msgno
+        msgv1 = sy-msgv1
+        msgv2 = sy-msgv2
+        msgv3 = sy-msgv3
+        msgv4 = sy-msgv4.
 
   ENDMETHOD.
 
@@ -859,9 +826,9 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
           lv_message_var3 TYPE string,
           lv_message_var4 TYPE string.
 
-    IF iv_msg_txt IS NOT INITIAL.
+    IF msgtx IS NOT INITIAL.
 
-      message_text = iv_msg_txt.
+      message_text = msgtx.
 
       DO 4 TIMES.
 
@@ -869,16 +836,16 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
 
         CASE sy-index.
           WHEN 1.
-            lv_msg_var = i_msg_var1.
+            lv_msg_var = msgv1.
 
           WHEN 2.
-            lv_msg_var = i_msg_var2.
+            lv_msg_var = msgv2.
 
           WHEN 3.
-            lv_msg_var = i_msg_var3.
+            lv_msg_var = msgv3.
 
           WHEN 4.
-            lv_msg_var = i_msg_var4.
+            lv_msg_var = msgv4.
 
         ENDCASE.
 
@@ -896,14 +863,14 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
 
       content_type = 1.
 
-    ELSEIF iv_msg_num CN ' _'.
+    ELSEIF msgno CN ' _'.
 
-      message_number = iv_msg_num.
+      message_number = msgno.
 
-      message_var1 = CONV #( i_msg_var1 ).
-      message_var2 = CONV #( i_msg_var2 ).
-      message_var3 = CONV #( i_msg_var3 ).
-      message_var4 = CONV #( i_msg_var4 ).
+      message_var1 = CONV #( msgv1 ).
+      message_var2 = CONV #( msgv2 ).
+      message_var3 = CONV #( msgv3 ).
+      message_var4 = CONV #( msgv4 ).
 
       content_type = 2.
 
@@ -963,12 +930,12 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
 
     CALL METHOD me->create_message
       EXPORTING
-        iv_msg_txt = iv_msg_txt
-        iv_msg_num = iv_msg_num
-        i_msg_var1 = i_msg_var1
-        i_msg_var2 = i_msg_var2
-        i_msg_var3 = i_msg_var3
-        i_msg_var4 = i_msg_var4.
+        msgtx = msgtx
+        msgno = msgno
+        msgv1 = msgv1
+        msgv2 = msgv2
+        msgv3 = msgv3
+        msgv4 = msgv4.
 
   ENDMETHOD.
 
@@ -979,12 +946,12 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
 
     CALL METHOD me->create_message
       EXPORTING
-        iv_msg_txt = iv_msg_txt
-        iv_msg_num = iv_msg_num
-        i_msg_var1 = i_msg_var1
-        i_msg_var2 = i_msg_var2
-        i_msg_var3 = i_msg_var3
-        i_msg_var4 = i_msg_var4.
+        msgtx = msgtx
+        msgno = msgno
+        msgv1 = msgv1
+        msgv2 = msgv2
+        msgv3 = msgv3
+        msgv4 = msgv4.
 
   ENDMETHOD.
 
@@ -1002,7 +969,7 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
 
           CALL METHOD create_message
             EXPORTING
-              iv_msg_txt = |Process Duration: { lv_duration } Seconds|.
+              msgtx = |Process Duration: { lv_duration } Seconds|.
 
         CATCH cx_root.
       ENDTRY.
@@ -1018,8 +985,42 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
 
     CALL METHOD create_message
       EXPORTING
-        iv_msg_txt = repeat( val = '-'
-                             occ = 255 ).
+        msgtx = repeat( val = '-'
+                        occ = 255 ).
 
   ENDMETHOD.
+
+
+  METHOD det_caller.
+
+    CHECK caller CO ' _0'.
+
+    CALL METHOD ziot_cl_bs_session=>get_callstack
+      IMPORTING
+        ev_function = DATA(lv_function)
+        ev_method   = DATA(lv_method)
+        ev_class    = DATA(lv_class)
+        ev_report   = DATA(lv_report).
+
+    IF lv_function IS NOT INITIAL.
+
+      caller = lv_function.
+
+    ELSEIF lv_class IS NOT INITIAL
+      AND lv_method IS NOT INITIAL.
+
+      CONCATENATE lv_class '=>' lv_method INTO caller.
+
+    ELSEIF lv_report IS NOT INITIAL.
+
+      caller = lv_report.
+
+    ELSE.
+
+      RETURN.
+
+    ENDIF.
+
+  ENDMETHOD.
+
 ENDCLASS.
