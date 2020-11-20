@@ -54,6 +54,10 @@ CLASS zz_cl_bs_log DEFINITION
     METHODS log_api_message
       IMPORTING
         !io_api_message TYPE REF TO /scwm/if_api_message.
+    METHODS log_dm_message
+      IMPORTING
+        !io_dm_message TYPE REF TO /scwm/cl_dm_message_no OPTIONAL
+        !it_dm_message TYPE /scdl/dm_message_tab.
     METHODS log_sy_message
       IMPORTING
         !is_symsg TYPE symsg.
@@ -776,6 +780,8 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
 
     CALL METHOD instance->log_caller.
 
+    ro_instance = instance.
+
   ENDMETHOD.
 
 
@@ -866,6 +872,29 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
     CALL METHOD create_message
       EXPORTING
         msgtx = lv_msg_txt.
+
+  ENDMETHOD.
+
+
+  METHOD log_dm_message.
+
+    IF io_dm_message IS BOUND.
+
+      DATA(lt_dm_message) = io_dm_message->get_messages( ).
+
+    ELSEIF it_dm_message IS NOT INITIAL.
+
+      lt_dm_message = it_dm_message.
+
+    ELSE.
+
+      RETURN.
+
+    ENDIF.
+
+    LOOP AT lt_dm_message ASSIGNING FIELD-SYMBOL(<ls_dm_message>).
+      log_sy_message( is_symsg = CORRESPONDING #( <ls_dm_message> ) ).
+    ENDLOOP.
 
   ENDMETHOD.
 
@@ -1213,23 +1242,6 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD warning.
-
-    message_type = log_type_warning.
-
-    CALL METHOD create_message
-      EXPORTING
-        msgtx = msgtx
-        msgno = msgno
-        msgv1 = msgv1
-        msgv2 = msgv2
-        msgv3 = msgv3
-        msgv4 = msgv4
-        msgde = msgde.
-
-  ENDMETHOD.
-
-
   METHOD to_msgde.
 
     DATA: lo_elem_descr   TYPE REF TO cl_abap_elemdescr,
@@ -1306,4 +1318,20 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
 
   ENDMETHOD.
 
+
+  METHOD warning.
+
+    message_type = log_type_warning.
+
+    CALL METHOD create_message
+      EXPORTING
+        msgtx = msgtx
+        msgno = msgno
+        msgv1 = msgv1
+        msgv2 = msgv2
+        msgv3 = msgv3
+        msgv4 = msgv4
+        msgde = msgde.
+
+  ENDMETHOD.
 ENDCLASS.
