@@ -5,7 +5,8 @@ CLASS zz_cl_bs_log DEFINITION
 
   PUBLIC SECTION.
     TYPES: v_message_param_id TYPE n LENGTH 10,
-           t_input_parameters TYPE TABLE OF rsra_s_parameter.
+           s_input_parameters TYPE rsra_s_parameter,
+           t_input_parameters TYPE rsra_t_alert_definition.
 
     CONSTANTS: c_msg_ident  TYPE c LENGTH 9 VALUE 'MSG_IDENT',
                c_log_number TYPE spo_par VALUE '%LOGNUMBER'.
@@ -16,7 +17,24 @@ CLASS zz_cl_bs_log DEFINITION
 
     CLASS-METHODS get_instance
       RETURNING
-        VALUE(ro_instance) TYPE REF TO ziot_cl_bs_log .
+        VALUE(ro_instance) TYPE REF TO zz_cl_bs_log.
+    CLASS-METHODS init
+      IMPORTING
+        !iv_object         TYPE balobj_d DEFAULT '/SCWM/WME'
+        !iv_subobject      TYPE balsubobj
+        !iv_extnumber      TYPE balnrext OPTIONAL
+        !it_extnumber_list TYPE stringtab OPTIONAL
+        !iv_lgnum          TYPE /scwm/lgnum DEFAULT ziot_constants=>lgnum
+      RETURNING
+        VALUE(ro_instance) TYPE REF TO zz_cl_bs_log.
+    CLASS-METHODS to_msgde
+      IMPORTING
+        iv_obj_type     TYPE char50
+        is_msgde        TYPE s_input_parameters OPTIONAL
+        is_data         TYPE data OPTIONAL
+        it_data         TYPE ANY TABLE OPTIONAL
+      RETURNING
+        VALUE(rt_msgde) TYPE t_input_parameters.
 
     METHODS get_protocol
       RETURNING
@@ -81,24 +99,12 @@ CLASS zz_cl_bs_log DEFINITION
         !msgde TYPE t_input_parameters OPTIONAL.
     METHODS save
       IMPORTING
-        !iv_add_end_line TYPE abap_bool DEFAULT abap_true.
-    METHODS init
-      IMPORTING
-        !iv_object         TYPE balobj_d DEFAULT '/SCWM/WME'
-        !iv_subobject      TYPE balsubobj
-        !iv_extnumber      TYPE balnrext OPTIONAL
-        !it_extnumber_list TYPE stringtab OPTIONAL
-        !iv_lgnum          TYPE /scwm/lgnum DEFAULT ziot_constants=>lgnum.
+        !iv_finalize_log TYPE abap_bool DEFAULT abap_true.
 
   PROTECTED SECTION.
-    TYPES: BEGIN OF s_log_handle,
-             log_id      TYPE char8,
-             log_handle  TYPE balloghndl,
-             log_counter TYPE int2,
-           END OF s_log_handle.
-    TYPES: t_log_stack        TYPE TABLE OF REF TO ziot_cl_bs_log WITH DEFAULT KEY.
+    TYPES: t_log_stack TYPE TABLE OF REF TO zz_cl_bs_log WITH DEFAULT KEY.
 
-    CLASS-DATA: instance  TYPE REF TO ziot_cl_bs_log,
+    CLASS-DATA: instance  TYPE REF TO zz_cl_bs_log,
                 log_stack TYPE t_log_stack. " LIFO: Last log initiated is first to be saved
 
     DATA log_header TYPE bal_s_log .
@@ -140,6 +146,8 @@ CLASS zz_cl_bs_log DEFINITION
     CONSTANTS log_process_init TYPE char4 VALUE 'INIT' ##NO_TEXT.
     CONSTANTS log_process_save TYPE char4 VALUE 'SAVE' ##NO_TEXT.
     CONSTANTS log_process_exception TYPE char4 VALUE 'EXCP' ##NO_TEXT.
+
+    CLASS-METHODS add_new_instance.
 
     METHODS add_msg_to_log_protocol
       IMPORTING
@@ -196,6 +204,27 @@ ENDCLASS.
 
 
 CLASS zz_cl_bs_log IMPLEMENTATION.
+
+
+  METHOD add_message_detail.
+
+    CHECK message_detail_input IS NOT INITIAL.
+
+    " Add message identifier, example SBAL_CALLBACK
+    message_params-callback-userexitp = 'ZIOT_R_BS_LOG_CALLBACK'.
+    message_params-callback-userexitf = 'ON_CLICK_MSG_DETAIL'.
+    message_params-callback-userexitt = ' '.
+
+    message_param_id = message_param_id + 1.
+    APPEND VALUE #( parname  = c_msg_ident
+                    parvalue = message_param_id ) TO message_params-t_par.
+
+    APPEND VALUE #( v_id              = message_param_id
+                    t_input_parameter = message_detail_input ) TO message_detail.
+
+    CLEAR: message_detail_input.
+
+  ENDMETHOD.
 
 
   METHOD add_msg_by_message_object.
@@ -299,6 +328,14 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
       DATA(ls_bapiret2) = CORRESPONDING bapiret2( ls_msg ).
       APPEND ls_bapiret2 TO log_protocol.
     ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD add_new_instance.
+
+    instance = NEW zz_cl_bs_log( ).
+    APPEND instance TO log_stack.
 
   ENDMETHOD.
 
@@ -460,6 +497,39 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
   ENDMETHOD.
 
 
+  METHOD det_caller.
+
+    CHECK caller CO ' _0'.
+
+    CALL METHOD ziot_cl_bs_session=>get_callstack
+      IMPORTING
+        ev_function = DATA(lv_function)
+        ev_method   = DATA(lv_method)
+        ev_class    = DATA(lv_class)
+        ev_report   = DATA(lv_report).
+
+    IF lv_function IS NOT INITIAL.
+
+      caller = lv_function.
+
+    ELSEIF lv_class IS NOT INITIAL
+      AND lv_method IS NOT INITIAL.
+
+      CONCATENATE lv_class '=>' lv_method INTO caller.
+
+    ELSEIF lv_report IS NOT INITIAL.
+
+      caller = lv_report.
+
+    ELSE.
+
+      RETURN.
+
+    ENDIF.
+
+  ENDMETHOD.
+
+
   METHOD error.
 
     message_type = log_type_error.
@@ -506,13 +576,11 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
     log_message( ).
 
 *** Bestehendes Log abschließen und neues für Fehlerbehandlung erzeugen
-    CALL METHOD save.
+    save( ).
 
-    CALL METHOD init
-      EXPORTING
-        iv_subobject = space
-        iv_extnumber = 'Logging: Fehlerbehandlung'
-        iv_lgnum     = lgnum.
+    init( iv_subobject = ziot_constants=>log_subobject_log
+          iv_extnumber = 'Logging: Fehlerbehandlung'
+          iv_lgnum     = lgnum ).
 
     MESSAGE e000(ziot_log) WITH iv_process INTO lv_msg.
     log_message( ).
@@ -522,9 +590,7 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
     lv_msg_txt_gen = |; OBJECT: { lv_msg_object }; SUBOBJ: { lv_msg_subobj }| &&
                      |; EXTNUM: { lv_msg_extnum }; ALDDEL: { lv_msg_alddel }|.
 
-    CALL METHOD error
-      EXPORTING
-        msgtx = lv_msg_txt_gen.
+    error( msgtx = lv_msg_txt_gen ).
 
     CASE iv_process.
       WHEN log_process_init.
@@ -627,8 +693,7 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
 
       IF instance IS NOT BOUND.
 
-        CREATE OBJECT instance.
-        APPEND instance TO log_stack.
+        add_new_instance( ).
 
       ENDIF.
 
@@ -669,45 +734,47 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
 
   METHOD init.
 
-    GET TIME STAMP FIELD process_start.
+    add_new_instance( ).
 
-    lgnum                = iv_lgnum.
-    log_header-object    = iv_object.
-    log_header-subobject = iv_subobject.
+    GET TIME STAMP FIELD instance->process_start.
 
-    CLEAR: caller.
-    CALL METHOD det_caller.
+    instance->lgnum                = iv_lgnum.
+    instance->log_header-object    = iv_object.
+    instance->log_header-subobject = iv_subobject.
 
-    CALL METHOD build_extnumber
+    CLEAR: instance->caller.
+    CALL METHOD instance->det_caller.
+
+    CALL METHOD instance->build_extnumber
       EXPORTING
         extnumber      = iv_extnumber
         extnumber_list = it_extnumber_list
       CHANGING
-        log_header     = log_header.
+        log_header     = instance->log_header.
 
-    CALL METHOD build_validity
+    CALL METHOD instance->build_validity
       CHANGING
-        log_header = log_header.
+        log_header = instance->log_header.
 
     CALL FUNCTION 'BAL_LOG_CREATE'
       EXPORTING
-        i_s_log                 = log_header
+        i_s_log                 = instance->log_header
       IMPORTING
-        e_log_handle            = log_handle
+        e_log_handle            = instance->log_handle
       EXCEPTIONS
         log_header_inconsistent = 1
         OTHERS                  = 2.
 
     IF sy-subrc <> 0.
 
-      CALL METHOD error_handling
+      CALL METHOD instance->error_handling
         EXPORTING
           iv_process = log_process_init
           iv_subrc   = sy-subrc.
 
     ENDIF.
 
-    CALL METHOD log_caller.
+    CALL METHOD instance->log_caller.
 
   ENDMETHOD.
 
@@ -731,44 +798,6 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
         et_bapiret = DATA(lt_bapiret) ).
 
     log_bapiret( lt_bapiret ).
-
-  ENDMETHOD.
-
-
-  METHOD log_sy_message.
-
-    message_class = is_symsg-msgid.
-
-    CASE is_symsg-msgty.
-      WHEN log_type_info.
-        info( msgno = is_symsg-msgno
-              msgv1 = is_symsg-msgv1
-              msgv2 = is_symsg-msgv2
-              msgv3 = is_symsg-msgv3
-              msgv4 = is_symsg-msgv4 ).
-
-      WHEN log_type_success.
-        success( msgno = is_symsg-msgno
-                 msgv1 = is_symsg-msgv1
-                 msgv2 = is_symsg-msgv2
-                 msgv3 = is_symsg-msgv3
-                 msgv4 = is_symsg-msgv4 ).
-
-      WHEN log_type_warning.
-        warning( msgno = is_symsg-msgno
-                 msgv1 = is_symsg-msgv1
-                 msgv2 = is_symsg-msgv2
-                 msgv3 = is_symsg-msgv3
-                 msgv4 = is_symsg-msgv4 ).
-
-      WHEN log_type_error.
-        error( msgno = is_symsg-msgno
-               msgv1 = is_symsg-msgv1
-               msgv2 = is_symsg-msgv2
-               msgv3 = is_symsg-msgv3
-               msgv4 = is_symsg-msgv4 ).
-
-    ENDCASE.
 
   ENDMETHOD.
 
@@ -832,7 +861,7 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
     det_caller( ).
 
     message_type = log_type_success.
-    lv_msg_txt = |***** { caller } at { add_timestamp( ) }*****|.
+    lv_msg_txt = |***** { caller } at { add_timestamp( ) } *****|.
 
     CALL METHOD create_message
       EXPORTING
@@ -937,14 +966,50 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD save.
+  METHOD log_sy_message.
 
-    DELETE TABLE log_stack FROM instance.
+    message_class = is_symsg-msgid.
+
+    CASE is_symsg-msgty.
+      WHEN log_type_info.
+        info( msgno = is_symsg-msgno
+              msgv1 = is_symsg-msgv1
+              msgv2 = is_symsg-msgv2
+              msgv3 = is_symsg-msgv3
+              msgv4 = is_symsg-msgv4 ).
+
+      WHEN log_type_success.
+        success( msgno = is_symsg-msgno
+                 msgv1 = is_symsg-msgv1
+                 msgv2 = is_symsg-msgv2
+                 msgv3 = is_symsg-msgv3
+                 msgv4 = is_symsg-msgv4 ).
+
+      WHEN log_type_warning.
+        warning( msgno = is_symsg-msgno
+                 msgv1 = is_symsg-msgv1
+                 msgv2 = is_symsg-msgv2
+                 msgv3 = is_symsg-msgv3
+                 msgv4 = is_symsg-msgv4 ).
+
+      WHEN log_type_error.
+        error( msgno = is_symsg-msgno
+               msgv1 = is_symsg-msgv1
+               msgv2 = is_symsg-msgv2
+               msgv3 = is_symsg-msgv3
+               msgv4 = is_symsg-msgv4 ).
+
+    ENDCASE.
+
+  ENDMETHOD.
+
+
+  METHOD save.
 
     IF    has_error   EQ abap_false
       AND log_counter > 0.
 
-      IF iv_add_end_line EQ abap_true.
+      IF iv_finalize_log EQ abap_true.
         GET TIME STAMP FIELD process_end.
         CALL METHOD log_duration( ).
         CALL METHOD log_line( ).
@@ -963,7 +1028,72 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
 
     ENDIF.
 
-    CLEAR: log_header, log_handle.
+    IF iv_finalize_log EQ abap_true.
+      DELETE TABLE log_stack FROM instance.
+      CLEAR: instance, log_header, log_handle.
+    ENDIF.
+
+  ENDMETHOD.
+
+
+  METHOD save_log.
+
+    DATA(lt_log_handles) = VALUE bal_t_logh( ( log_handle ) ).
+    DATA(lt_new_lognumbers) = VALUE bal_t_lgnm( ).
+
+    CALL FUNCTION 'BAL_DB_SAVE'
+      EXPORTING
+        i_t_log_handle       = lt_log_handles
+        i_save_all           = abap_false
+        i_2th_connection     = abap_true
+        i_2th_connect_commit = abap_true
+      IMPORTING
+        e_new_lognumbers     = lt_new_lognumbers
+      EXCEPTIONS
+        log_not_found        = 1
+        save_not_allowed     = 2
+        numbering_error      = 3
+        OTHERS               = 4.
+
+    CASE sy-subrc.
+      WHEN 0.
+        save_message_detail( lt_new_lognumbers ).
+
+      WHEN OTHERS.
+        CALL FUNCTION 'BAL_LOG_DELETE'
+          EXPORTING
+            i_log_handle  = log_handle
+          EXCEPTIONS
+            log_not_found = 1
+            OTHERS        = 2.
+
+        CLEAR: log_header, log_handle.
+
+        CALL METHOD error_handling
+          EXPORTING
+            iv_process = log_process_save
+            iv_subrc   = sy-subrc.
+
+    ENDCASE.
+
+  ENDMETHOD.
+
+
+  METHOD save_message_detail.
+
+    CHECK it_new_lognumbers IS NOT INITIAL.
+    ASSIGN it_new_lognumbers[ lines( it_new_lognumbers ) ] TO FIELD-SYMBOL(<ls_new_lognumber>).
+    IF    message_detail    IS NOT INITIAL
+      AND <ls_new_lognumber> IS ASSIGNED.
+
+      CALL FUNCTION '/SCWM/DLV_EXPORT_LOG'
+        EXPORTING
+          iv_lognumber   = <ls_new_lognumber>-lognumber
+          it_msg_details = message_detail.
+
+      CLEAR: message_detail.
+
+    ENDIF.
 
   ENDMETHOD.
 
@@ -1100,113 +1230,77 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD det_caller.
+  METHOD to_msgde.
 
-    CHECK caller CO ' _0'.
+    DATA: lo_elem_descr   TYPE REF TO cl_abap_elemdescr,
+          lo_struct_descr TYPE REF TO cl_abap_structdescr,
+          lo_table_descr  TYPE REF TO cl_abap_tabledescr.
 
-    CALL METHOD ziot_cl_bs_session=>get_callstack
-      IMPORTING
-        ev_function = DATA(lv_function)
-        ev_method   = DATA(lv_method)
-        ev_class    = DATA(lv_class)
-        ev_report   = DATA(lv_report).
+    IF is_msgde IS NOT INITIAL.
 
-    IF lv_function IS NOT INITIAL.
+      APPEND is_msgde TO rt_msgde.
 
-      caller = lv_function.
+    ELSEIF is_data IS NOT INITIAL.
 
-    ELSEIF lv_class IS NOT INITIAL
-      AND lv_method IS NOT INITIAL.
+      lo_struct_descr ?= cl_abap_typedescr=>describe_by_data( is_data ).
 
-      CONCATENATE lv_class '=>' lv_method INTO caller.
+      LOOP AT lo_struct_descr->get_components( ) ASSIGNING FIELD-SYMBOL(<ls_component>).
 
-    ELSEIF lv_report IS NOT INITIAL.
+        ASSIGN COMPONENT <ls_component>-name OF STRUCTURE is_data TO FIELD-SYMBOL(<lv_value>).
+        CHECK <lv_value> IS ASSIGNED.
 
-      caller = lv_report.
+        APPEND VALUE #( fnam = <ls_component>-name
+                        low  = <lv_value> ) TO rt_msgde.
+
+      ENDLOOP.
+
+    ELSEIF it_data IS NOT INITIAL.
+
+      lo_table_descr ?= cl_abap_typedescr=>describe_by_data( it_data ).
+
+      DATA(lo_data_descr) = lo_table_descr->get_table_line_type( ).
+      CASE lo_data_descr->kind.
+        WHEN cl_abap_typedescr=>kind_elem.
+          lo_elem_descr ?= lo_data_descr.
+
+        WHEN cl_abap_typedescr=>kind_struct.
+          lo_struct_descr ?= lo_data_descr.
+
+        WHEN OTHERS.
+          RETURN.
+
+      ENDCASE.
+
+      LOOP AT it_data ASSIGNING FIELD-SYMBOL(<lx_data>).
+
+        IF lo_elem_descr IS BOUND.
+
+          APPEND VALUE #( fnam = iv_obj_type
+                          low  = <lx_data> ) TO rt_msgde.
+
+        ELSEIF lo_struct_descr IS BOUND.
+
+          LOOP AT lo_struct_descr->get_components( ) ASSIGNING <ls_component>.
+
+            ASSIGN COMPONENT <ls_component>-name OF STRUCTURE <lx_data> TO <lv_value>.
+            CHECK <lv_value> IS ASSIGNED.
+
+            APPEND VALUE #( fnam = <ls_component>-name
+                            low  = <lv_value> ) TO rt_msgde.
+
+          ENDLOOP.
+
+        ELSE.
+
+          EXIT.
+
+        ENDIF.
+
+      ENDLOOP.
 
     ELSE.
 
       RETURN.
-
-    ENDIF.
-
-  ENDMETHOD.
-
-
-  METHOD save_log.
-
-    DATA(lt_log_handles) = VALUE bal_t_logh( ( log_handle ) ).
-    DATA(lt_new_lognumbers) = VALUE bal_t_lgnm( ).
-
-    CALL FUNCTION 'BAL_DB_SAVE'
-      EXPORTING
-        i_t_log_handle   = lt_log_handles
-        i_save_all       = abap_true
-      IMPORTING
-        e_new_lognumbers = lt_new_lognumbers
-      EXCEPTIONS
-        log_not_found    = 1
-        save_not_allowed = 2
-        numbering_error  = 3
-        OTHERS           = 4.
-
-    CASE sy-subrc.
-      WHEN 0.
-        save_message_detail( lt_new_lognumbers ).
-
-      WHEN OTHERS.
-        CALL FUNCTION 'BAL_LOG_DELETE'
-          EXPORTING
-            i_log_handle  = log_handle
-          EXCEPTIONS
-            log_not_found = 1
-            OTHERS        = 2.
-
-        CLEAR: log_header, log_handle.
-
-        CALL METHOD error_handling
-          EXPORTING
-            iv_process = log_process_save
-            iv_subrc   = sy-subrc.
-
-    ENDCASE.
-
-  ENDMETHOD.
-
-
-  METHOD add_message_detail.
-
-    CHECK message_detail_input IS NOT INITIAL.
-
-    " Add message identifier, example SBAL_CALLBACK
-    message_params-callback-userexitp = 'ZZ_R_BS_LOG_CALLBACK'.
-    message_params-callback-userexitf = 'ON_CLICK_MSG_DETAIL'.
-    message_params-callback-userexitt = ' '.
-
-    message_param_id = message_param_id + 1.
-    APPEND VALUE #( parname  = c_msg_ident
-                    parvalue = message_param_id ) TO message_params-t_par.
-
-    APPEND VALUE #( v_id              = message_param_id
-                    t_input_parameter = message_detail_input ) TO message_detail.
-
-    CLEAR: message_detail_input.
-
-  ENDMETHOD.
-
-
-  METHOD save_message_detail.
-
-    ASSIGN it_new_lognumbers[ 1 ] TO FIELD-SYMBOL(<ls_new_lognumber>).
-    IF    message_detail    IS NOT INITIAL
-      AND <ls_new_lognumber> IS ASSIGNED.
-
-      CALL FUNCTION '/SCWM/DLV_EXPORT_LOG'
-        EXPORTING
-          iv_lognumber   = <ls_new_lognumber>-lognumber
-          it_msg_details = message_detail.
-
-      CLEAR: message_detail.
 
     ENDIF.
 
