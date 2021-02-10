@@ -8,8 +8,9 @@ CLASS zz_cl_bs_log DEFINITION
            s_input_parameters TYPE rsra_s_parameter,
            t_input_parameters TYPE rsra_t_alert_definition.
 
-    CONSTANTS: c_msg_ident  TYPE c LENGTH 9 VALUE 'MSG_IDENT',
-               c_log_number TYPE spo_par VALUE '%LOGNUMBER'.
+    CONSTANTS: c_msg_ident       TYPE c LENGTH 9 VALUE 'MSG_IDENT',
+               c_log_number      TYPE spo_par VALUE '%LOGNUMBER',
+               c_dflt_log_object TYPE balobj_d VALUE '/SCWM/WME'.
 
     CLASS-DATA: gui_docking_container TYPE REF TO  cl_gui_docking_container,
                 gui_alv_grid          TYPE REF TO  cl_gui_alv_grid,
@@ -20,11 +21,11 @@ CLASS zz_cl_bs_log DEFINITION
         VALUE(ro_instance) TYPE REF TO zz_cl_bs_log.
     CLASS-METHODS init
       IMPORTING
-        !iv_object         TYPE balobj_d DEFAULT '/SCWM/WME'
+        !iv_object         TYPE balobj_d DEFAULT c_dflt_log_object
         !iv_subobject      TYPE balsubobj
         !iv_extnumber      TYPE balnrext OPTIONAL
         !it_extnumber_list TYPE stringtab OPTIONAL
-        !iv_lgnum          TYPE /scwm/lgnum DEFAULT ziot_constants=>lgnum
+        !iv_lgnum          TYPE /scwm/lgnum
       RETURNING
         VALUE(ro_instance) TYPE REF TO zz_cl_bs_log.
     CLASS-METHODS to_msgde
@@ -590,8 +591,8 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
 *** Bestehendes Log abschließen und neues für Fehlerbehandlung erzeugen
     save( ).
 
-    init( iv_object    = ziot_constants=>log_object_log
-          iv_subobject = ziot_constants=>log_subobject_log
+    init( iv_object    = c_dflt_log_object
+          iv_subobject = 'LOG'
           iv_extnumber = 'Logging: Fehlerbehandlung'
           iv_lgnum     = lgnum ).
 
