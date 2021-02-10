@@ -17,7 +17,7 @@
      <SPRSL>E</SPRSL>
      <ARBGB>ZXXX_LOG</ARBGB>
      <MSGNR>001</MSGNR>
-     <TEXT>Logging failed - please check /SCWM/WME &gt; ZIOT_LOG.</TEXT>
+     <TEXT>Logging failed - please check LOG in SLG1.</TEXT>
     </T100>
     <T100>
      <SPRSL>E</SPRSL>
