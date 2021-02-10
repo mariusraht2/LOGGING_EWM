@@ -29,7 +29,7 @@ CLASS zz_cl_bs_log DEFINITION
         VALUE(ro_instance) TYPE REF TO zz_cl_bs_log.
     CLASS-METHODS to_msgde
       IMPORTING
-        iv_obj_type     TYPE char50
+        iv_fnam         TYPE char50
         is_msgde        TYPE s_input_parameters OPTIONAL
         is_data         TYPE data OPTIONAL
         it_data         TYPE ANY TABLE OPTIONAL
@@ -39,7 +39,7 @@ CLASS zz_cl_bs_log DEFINITION
     METHODS get_protocol
       RETURNING
         VALUE(rt_protocol) TYPE bapirettab .
-    METHODS init_sap_log
+    METHODS set_sap_log
       IMPORTING
         !io_log TYPE REF TO /scwm/cl_log .
     METHODS log_message
@@ -64,6 +64,7 @@ CLASS zz_cl_bs_log DEFINITION
     METHODS log_bapiret
       IMPORTING
         !it_bapiret TYPE bapirettab .
+    METHODS log_line.
     METHODS warning
       IMPORTING
         !msgtx TYPE char200 OPTIONAL
@@ -108,8 +109,10 @@ CLASS zz_cl_bs_log DEFINITION
   PROTECTED SECTION.
     TYPES: t_log_stack TYPE TABLE OF REF TO zz_cl_bs_log WITH DEFAULT KEY.
 
-    CLASS-DATA: instance  TYPE REF TO zz_cl_bs_log,
-                log_stack TYPE t_log_stack. " LIFO: Last log initiated is first to be saved
+    CLASS-DATA: instance   TYPE REF TO zz_cl_bs_log,
+                log_stack  TYPE t_log_stack, " LIFO: Last log initiated is first to be saved
+                has_error  TYPE abap_bool,
+                save_error TYPE abap_bool.
 
     DATA log_header TYPE bal_s_log .
     DATA log_handle TYPE balloghndl .
@@ -135,7 +138,6 @@ CLASS zz_cl_bs_log DEFINITION
     DATA log_protocol TYPE bapirettab .
     DATA log_counter TYPE i .
     DATA sap_log TYPE REF TO /scwm/cl_log .
-    DATA has_error TYPE abap_bool .
     DATA process_start TYPE timestampl.
     DATA process_end TYPE timestampl.
     DATA caller TYPE c LENGTH 200.
@@ -195,7 +197,6 @@ CLASS zz_cl_bs_log DEFINITION
         log_header TYPE bal_s_log.
     METHODS set_context.
     METHODS log_duration.
-    METHODS log_line.
     METHODS det_caller.
     METHODS save_log.
     METHODS add_message_detail.
@@ -329,7 +330,13 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
         OTHERS         = 3.
 
     IF sy-subrc = 0.
-      DATA(ls_bapiret2) = CORRESPONDING bapiret2( ls_msg ).
+      DATA(ls_bapiret2) = CORRESPONDING bapiret2( ls_msg MAPPING id         = msgid
+                                                                 type       = msgty
+                                                                 number     = msgno
+                                                                 message_v1 = msgv1
+                                                                 message_v2 = msgv2
+                                                                 message_v3 = msgv3
+                                                                 message_v4 = msgv4 ).
       APPEND ls_bapiret2 TO log_protocol.
     ENDIF.
 
@@ -556,7 +563,8 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
     " Stellt sicher, dass Fehlerhandling pro Fehler nur
     " einmal fehlschlagen kann und keine Endlosschleife
     " entsteht.
-    CHECK has_error EQ abap_false.
+    CHECK has_error  EQ abap_false
+      AND save_error EQ abap_false.
     has_error = abap_true.
 
 *** Eingangsdaten sichern
@@ -582,7 +590,8 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
 *** Bestehendes Log abschließen und neues für Fehlerbehandlung erzeugen
     save( ).
 
-    init( iv_subobject = ziot_constants=>log_subobject_log
+    init( iv_object    = ziot_constants=>log_object_log
+          iv_subobject = ziot_constants=>log_subobject_log
           iv_extnumber = 'Logging: Fehlerbehandlung'
           iv_lgnum     = lgnum ).
 
@@ -682,16 +691,26 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
       WHEN log_process_save.
     ENDCASE.
 
+    " Ermögliche Speichern des Fehlerlogs
+    save_error = abap_true.
+
     " Log für Fehlerbehandlung speichern
-    save( ).
+    save_log( ).
 
     " Fehlerhandling kann jetzt wieder aufgerufen werden
     has_error = abap_false.
+    save_error = abap_false.
 
   ENDMETHOD.
 
 
   METHOD get_instance.
+
+*    ASSERT log_stack IS NOT INITIAL.
+*
+*    instance = log_stack[ lines( log_stack ) ].
+*
+*    ro_instance = instance.
 
     IF log_stack IS INITIAL.
 
@@ -769,7 +788,8 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
         log_header_inconsistent = 1
         OTHERS                  = 2.
 
-    IF sy-subrc <> 0.
+    IF    sy-subrc <> 0
+      AND has_error EQ abap_false.
 
       CALL METHOD instance->error_handling
         EXPORTING
@@ -785,7 +805,7 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
   ENDMETHOD.
 
 
-  METHOD init_sap_log.
+  METHOD set_sap_log.
 
     IF    io_log IS BOUND
       AND io_log IS NOT INITIAL.
@@ -1035,7 +1055,8 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
 
   METHOD save.
 
-    IF    has_error   EQ abap_false
+    IF    (    has_error  EQ abap_false
+            OR save_error EQ abap_true )
       AND log_counter > 0.
 
       IF iv_finalize_log EQ abap_true.
@@ -1244,8 +1265,7 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
 
   METHOD to_msgde.
 
-    DATA: lo_elem_descr   TYPE REF TO cl_abap_elemdescr,
-          lo_struct_descr TYPE REF TO cl_abap_structdescr,
+    DATA: lo_struct_descr TYPE REF TO cl_abap_structdescr,
           lo_table_descr  TYPE REF TO cl_abap_tabledescr.
 
     IF is_msgde IS NOT INITIAL.
@@ -1269,44 +1289,31 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
     ELSEIF it_data IS NOT INITIAL.
 
       lo_table_descr ?= cl_abap_typedescr=>describe_by_data( it_data ).
-
       DATA(lo_data_descr) = lo_table_descr->get_table_line_type( ).
-      CASE lo_data_descr->kind.
-        WHEN cl_abap_typedescr=>kind_elem.
-          lo_elem_descr ?= lo_data_descr.
-
-        WHEN cl_abap_typedescr=>kind_struct.
-          lo_struct_descr ?= lo_data_descr.
-
-        WHEN OTHERS.
-          RETURN.
-
-      ENDCASE.
 
       LOOP AT it_data ASSIGNING FIELD-SYMBOL(<lx_data>).
 
-        IF lo_elem_descr IS BOUND.
+        CASE lo_data_descr->kind.
+          WHEN cl_abap_typedescr=>kind_elem.
+            APPEND VALUE #( fnam = iv_fnam
+                            low  = <lx_data> ) TO rt_msgde.
 
-          APPEND VALUE #( fnam = iv_obj_type
-                          low  = <lx_data> ) TO rt_msgde.
+          WHEN cl_abap_typedescr=>kind_struct.
+            lo_struct_descr ?= lo_data_descr.
+            LOOP AT lo_struct_descr->get_components( ) ASSIGNING <ls_component>.
 
-        ELSEIF lo_struct_descr IS BOUND.
+              ASSIGN COMPONENT <ls_component>-name OF STRUCTURE <lx_data> TO <lv_value>.
+              CHECK <lv_value> IS ASSIGNED.
 
-          LOOP AT lo_struct_descr->get_components( ) ASSIGNING <ls_component>.
+              APPEND VALUE #( fnam = <ls_component>-name
+                              low  = <lv_value> ) TO rt_msgde.
 
-            ASSIGN COMPONENT <ls_component>-name OF STRUCTURE <lx_data> TO <lv_value>.
-            CHECK <lv_value> IS ASSIGNED.
+            ENDLOOP.
 
-            APPEND VALUE #( fnam = <ls_component>-name
-                            low  = <lv_value> ) TO rt_msgde.
+          WHEN OTHERS.
+            EXIT.
 
-          ENDLOOP.
-
-        ELSE.
-
-          EXIT.
-
-        ENDIF.
+        ENDCASE.
 
       ENDLOOP.
 
@@ -1334,4 +1341,5 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
         msgde = msgde.
 
   ENDMETHOD.
+
 ENDCLASS.
