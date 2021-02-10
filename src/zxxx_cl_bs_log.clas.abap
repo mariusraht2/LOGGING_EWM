@@ -1,4 +1,4 @@
-CLASS zz_cl_bs_log DEFINITION
+CLASS zxxx_cl_bs_log DEFINITION
   PUBLIC
   FINAL
   CREATE PUBLIC .
@@ -18,7 +18,7 @@ CLASS zz_cl_bs_log DEFINITION
 
     CLASS-METHODS get_instance
       RETURNING
-        VALUE(ro_instance) TYPE REF TO zz_cl_bs_log.
+        VALUE(ro_instance) TYPE REF TO zxxx_cl_bs_log.
     CLASS-METHODS init
       IMPORTING
         !iv_object         TYPE balobj_d DEFAULT c_dflt_log_object
@@ -27,7 +27,7 @@ CLASS zz_cl_bs_log DEFINITION
         !it_extnumber_list TYPE stringtab OPTIONAL
         !iv_lgnum          TYPE /scwm/lgnum
       RETURNING
-        VALUE(ro_instance) TYPE REF TO zz_cl_bs_log.
+        VALUE(ro_instance) TYPE REF TO zxxx_cl_bs_log.
     CLASS-METHODS to_msgde
       IMPORTING
         iv_fnam         TYPE char50
@@ -108,9 +108,9 @@ CLASS zz_cl_bs_log DEFINITION
         !iv_finalize_log TYPE abap_bool DEFAULT abap_true.
 
   PROTECTED SECTION.
-    TYPES: t_log_stack TYPE TABLE OF REF TO zz_cl_bs_log WITH DEFAULT KEY.
+    TYPES: t_log_stack TYPE TABLE OF REF TO zxxx_cl_bs_log WITH DEFAULT KEY.
 
-    CLASS-DATA: instance   TYPE REF TO zz_cl_bs_log,
+    CLASS-DATA: instance   TYPE REF TO zxxx_cl_bs_log,
                 log_stack  TYPE t_log_stack, " LIFO: Last log initiated is first to be saved
                 has_error  TYPE abap_bool,
                 save_error TYPE abap_bool.
@@ -209,7 +209,7 @@ ENDCLASS.
 
 
 
-CLASS zz_cl_bs_log IMPLEMENTATION.
+CLASS zxxx_cl_bs_log IMPLEMENTATION.
 
 
   METHOD add_message_detail.
@@ -217,7 +217,7 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
     CHECK message_detail_input IS NOT INITIAL.
 
     " Add message identifier, example SBAL_CALLBACK
-    message_params-callback-userexitp = 'ZIOT_R_BS_LOG_CALLBACK'.
+    message_params-callback-userexitp = 'ZXXX_R_BS_LOG_CALLBACK'.
     message_params-callback-userexitf = 'ON_CLICK_MSG_DETAIL'.
     message_params-callback-userexitt = ' '.
 
@@ -346,7 +346,7 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
 
   METHOD add_new_instance.
 
-    instance = NEW zz_cl_bs_log( ).
+    instance = NEW zxxx_cl_bs_log( ).
     APPEND instance TO log_stack.
 
   ENDMETHOD.
@@ -513,7 +513,7 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
 
     CHECK caller CO ' _0'.
 
-    CALL METHOD ziot_cl_bs_session=>get_callstack
+    CALL METHOD zxxx_cl_bs_session=>get_callstack
       IMPORTING
         ev_function = DATA(lv_function)
         ev_method   = DATA(lv_method)
@@ -585,7 +585,7 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
 
     " Versuch zum alten Log Fehlernachricht bzgl.
     " fehlgeschlagenem Logging hinzuzufügen.
-    MESSAGE e001(ziot_log) INTO DATA(lv_msg).
+    MESSAGE e001(zxxx_log) INTO DATA(lv_msg).
     log_message( ).
 
 *** Bestehendes Log abschließen und neues für Fehlerbehandlung erzeugen
@@ -596,7 +596,7 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
           iv_extnumber = 'Logging: Fehlerbehandlung'
           iv_lgnum     = lgnum ).
 
-    MESSAGE e000(ziot_log) WITH iv_process INTO lv_msg.
+    MESSAGE e000(zxxx_log) WITH iv_process INTO lv_msg.
     log_message( ).
 
 *** Allgemeine Log-Daten loggen
@@ -610,42 +610,42 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
       WHEN log_process_init.
         CASE iv_subrc.
           WHEN 1.
-            MESSAGE e006(ziot_log) WITH iv_subrc INTO lv_msg.
+            MESSAGE e006(zxxx_log) WITH iv_subrc INTO lv_msg.
 
           WHEN OTHERS.
-            MESSAGE e007(ziot_log) WITH iv_subrc INTO lv_msg.
+            MESSAGE e007(zxxx_log) WITH iv_subrc INTO lv_msg.
 
         ENDCASE.
 
       WHEN log_process_save.
         CASE iv_subrc.
           WHEN 1.
-            MESSAGE e008(ziot_log) WITH iv_subrc INTO lv_msg.
+            MESSAGE e008(zxxx_log) WITH iv_subrc INTO lv_msg.
 
           WHEN 2.
-            MESSAGE e009(ziot_log) WITH iv_subrc INTO lv_msg.
+            MESSAGE e009(zxxx_log) WITH iv_subrc INTO lv_msg.
 
           WHEN 3.
-            MESSAGE e010(ziot_log) WITH iv_subrc INTO lv_msg.
+            MESSAGE e010(zxxx_log) WITH iv_subrc INTO lv_msg.
 
           WHEN OTHERS.
-            MESSAGE e011(ziot_log) WITH iv_subrc INTO lv_msg.
+            MESSAGE e011(zxxx_log) WITH iv_subrc INTO lv_msg.
 
         ENDCASE.
 
       WHEN OTHERS.
         CASE sy-subrc.
           WHEN 1.
-            MESSAGE e008(ziot_log) WITH iv_subrc INTO lv_msg.
+            MESSAGE e008(zxxx_log) WITH iv_subrc INTO lv_msg.
 
           WHEN 2.
-            MESSAGE e012(ziot_log) WITH iv_subrc INTO lv_msg.
+            MESSAGE e012(zxxx_log) WITH iv_subrc INTO lv_msg.
 
           WHEN 3.
-            MESSAGE e013(ziot_log) WITH iv_subrc INTO lv_msg.
+            MESSAGE e013(zxxx_log) WITH iv_subrc INTO lv_msg.
 
           WHEN OTHERS.
-            MESSAGE e014(ziot_log) WITH iv_subrc INTO lv_msg.
+            MESSAGE e014(zxxx_log) WITH iv_subrc INTO lv_msg.
 
         ENDCASE.
 
@@ -661,7 +661,7 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
       WHEN log_process_create.
         IF message_text CN ' _0'.
 
-          MESSAGE e015(ziot_log) WITH lv_msg_typ INTO lv_msg.
+          MESSAGE e015(zxxx_log) WITH lv_msg_typ INTO lv_msg.
           log_message( ).
 
           CALL METHOD error
@@ -670,15 +670,15 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
 
         ELSEIF message_number CN ' _0'.
 
-          MESSAGE e003(ziot_log) WITH lv_msg_nr lv_msg_class INTO lv_msg.
+          MESSAGE e003(zxxx_log) WITH lv_msg_nr lv_msg_class INTO lv_msg.
           log_message( ).
 
-          MESSAGE e004(ziot_log) WITH lv_msg_v1 lv_msg_v2 lv_msg_v3 lv_msg_v4 INTO lv_msg.
+          MESSAGE e004(zxxx_log) WITH lv_msg_v1 lv_msg_v2 lv_msg_v3 lv_msg_v4 INTO lv_msg.
           log_message( ).
 
         ELSE.
 
-          MESSAGE e002(ziot_log) INTO lv_msg.
+          MESSAGE e002(zxxx_log) INTO lv_msg.
           log_message( ).
 
         ENDIF.
@@ -686,7 +686,7 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
       WHEN log_process_exception.
         DATA(lo_exc_descr) = NEW cl_instance_description( the_subject = io_exception ).
 
-        MESSAGE e005(ziot_log) WITH lo_exc_descr->class_name INTO lv_msg.
+        MESSAGE e005(zxxx_log) WITH lo_exc_descr->class_name INTO lv_msg.
         log_message( ).
 
       WHEN log_process_save.
@@ -1212,17 +1212,17 @@ CLASS zz_cl_bs_log IMPLEMENTATION.
 
   METHOD set_context.
 
-    ziot_cl_bs_session=>get_context(
+    zxxx_cl_bs_session=>get_context(
       IMPORTING
         ev_program = DATA(lv_program)
         ev_blockname = DATA(lv_include)
         ev_line    = DATA(lv_line) ).
 
-    DATA(ls_log_context) = VALUE ziot_s_log_context( program = lv_program
+    DATA(ls_log_context) = VALUE zxxx_s_log_context( program = lv_program
                                                      include = lv_include
                                                      line    = lv_line ).
     message_context-value   = ls_log_context.
-    message_context-tabname = 'ZIOT_S_LOG_CONTEXT'.
+    message_context-tabname = 'ZXXX_S_LOG_CONTEXT'.
 
   ENDMETHOD.
 

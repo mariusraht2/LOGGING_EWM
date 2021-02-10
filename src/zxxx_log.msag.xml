@@ -1,0 +1,109 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<abapGit version="v1.0.0" serializer="LCL_OBJECT_MSAG" serializer_version="v1.0.0">
+ <asx:abap xmlns:asx="http://www.sap.com/abapxml" version="1.0">
+  <asx:values>
+   <T100A>
+    <ARBGB>ZXXX_LOG</ARBGB>
+    <MASTERLANG>E</MASTERLANG>
+   </T100A>
+   <T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZXXX_LOG</ARBGB>
+     <MSGNR>000</MSGNR>
+     <TEXT>Log-Process &apos;&amp;1&apos; couldn&apos;t be executed successfully.</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZXXX_LOG</ARBGB>
+     <MSGNR>001</MSGNR>
+     <TEXT>Logging failed - please check /SCWM/WME &gt; ZIOT_LOG.</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZXXX_LOG</ARBGB>
+     <MSGNR>002</MSGNR>
+     <TEXT>An empty message was tried to be written into the log.</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZXXX_LOG</ARBGB>
+     <MSGNR>003</MSGNR>
+     <TEXT>Message with No. &amp;1 (&amp;2) couldn&apos;t be written into the log.</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZXXX_LOG</ARBGB>
+     <MSGNR>004</MSGNR>
+     <TEXT>Variables: &apos;&amp;1&apos;, &apos;&amp;2&apos;, &apos;&amp;3&apos; and &apos;&amp;4&apos;.</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZXXX_LOG</ARBGB>
+     <MSGNR>005</MSGNR>
+     <TEXT>Exception &apos;&amp;1&apos; couldn&apos;t be written into the log.</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZXXX_LOG</ARBGB>
+     <MSGNR>006</MSGNR>
+     <TEXT>SUBRC: &amp;1 - Inconsistent Log-Header Data.</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZXXX_LOG</ARBGB>
+     <MSGNR>007</MSGNR>
+     <TEXT>SUBRC: &amp;1 - The log object couldn&apos;t be created.</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZXXX_LOG</ARBGB>
+     <MSGNR>008</MSGNR>
+     <TEXT>SUBRC: &amp;1 - The log object couldn&apos;t be found.</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZXXX_LOG</ARBGB>
+     <MSGNR>009</MSGNR>
+     <TEXT>SUBRC: &amp;1 - Saving of the logs was rejected.</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZXXX_LOG</ARBGB>
+     <MSGNR>010</MSGNR>
+     <TEXT>SUBRC: &amp;1 - Number assignment error while saving the log.</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZXXX_LOG</ARBGB>
+     <MSGNR>011</MSGNR>
+     <TEXT>SUBRC: &amp;1 - The log couldn&apos;t be saved.</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZXXX_LOG</ARBGB>
+     <MSGNR>012</MSGNR>
+     <TEXT>SUBRC: &amp;1 - The log message data is inconsistent.</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZXXX_LOG</ARBGB>
+     <MSGNR>013</MSGNR>
+     <TEXT>SUBRC: &amp;1 - The log object can&apos;t hold additional log messages.</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZXXX_LOG</ARBGB>
+     <MSGNR>014</MSGNR>
+     <TEXT>SUBRC: &amp;1 - The message couldn&apos;t be added to the log.</TEXT>
+    </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZXXX_LOG</ARBGB>
+     <MSGNR>015</MSGNR>
+     <TEXT>Message (Type: &amp;1) with following text couldn&apos;t be written into the log:</TEXT>
+    </T100>
+   </T100>
+  </asx:values>
+ </asx:abap>
+</abapGit>

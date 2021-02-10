@@ -1,4 +1,4 @@
-CLASS zz_cl_bs_session DEFINITION
+CLASS zxxx_cl_bs_session DEFINITION
   PUBLIC
   FINAL
   CREATE PUBLIC .
@@ -21,7 +21,7 @@ ENDCLASS.
 
 
 
-CLASS zz_cl_bs_session IMPLEMENTATION.
+CLASS zxxx_cl_bs_session IMPLEMENTATION.
 
 
   METHOD get_callstack.

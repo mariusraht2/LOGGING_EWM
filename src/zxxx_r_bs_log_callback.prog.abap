@@ -3,18 +3,18 @@
 *&---------------------------------------------------------------------*
 *&
 *&---------------------------------------------------------------------*
-REPORT zz_r_bs_log_callback.
+REPORT zxxx_r_bs_log_callback.
 
 FORM on_click_msg_detail TABLES i_params STRUCTURE spar.
 
   DATA: lv_log_number     TYPE balognr,
-        lv_msg_param_id   TYPE zz_cl_bs_log=>v_message_param_id,
+        lv_msg_param_id   TYPE zxxx_cl_bs_log=>v_message_param_id,
         ls_structure_name TYPE dd02l-tabname.
 
   FIELD-SYMBOLS: <lt_outtab> TYPE STANDARD TABLE.
 
   " Find out the identifier for this message
-  lv_log_number = VALUE #( i_params[ param = zz_cl_bs_log=>c_log_number ]-value OPTIONAL ).
+  lv_log_number = VALUE #( i_params[ param = zxxx_cl_bs_log=>c_log_number ]-value OPTIONAL ).
   CHECK lv_log_number IS NOT INITIAL.
 
   " Load specific message details from database
@@ -27,42 +27,42 @@ FORM on_click_msg_detail TABLES i_params STRUCTURE spar.
 
   CHECK lt_msg_details IS NOT INITIAL.
 
-  lv_msg_param_id = VALUE #( i_params[ param = zz_cl_bs_log=>c_msg_ident ]-value OPTIONAL ).
+  lv_msg_param_id = VALUE #( i_params[ param = zxxx_cl_bs_log=>c_msg_ident ]-value OPTIONAL ).
   CHECK lv_msg_param_id IS NOT INITIAL.
 
   " Search for those entries which belong to this message
   ASSIGN lt_msg_details[ v_id = lv_msg_param_id ] TO FIELD-SYMBOL(<ls_msg_details>).
   CHECK <ls_msg_details> IS ASSIGNED.
 
-  IF zz_cl_bs_log=>gui_alv_grid IS NOT INITIAL.
-    zz_cl_bs_log=>gui_alv_grid->free( ).
-    CLEAR zz_cl_bs_log=>gui_alv_grid.
+  IF zxxx_cl_bs_log=>gui_alv_grid IS NOT INITIAL.
+    zxxx_cl_bs_log=>gui_alv_grid->free( ).
+    CLEAR zxxx_cl_bs_log=>gui_alv_grid.
   ENDIF.
 
   "    Show container if not visible
   " OR Hide container if detail to same message was again being selected
-  IF    zz_cl_bs_log=>gui_docking_container IS BOUND
-    AND zz_cl_bs_log=>sel_message_param_id EQ lv_msg_param_id.
+  IF    zxxx_cl_bs_log=>gui_docking_container IS BOUND
+    AND zxxx_cl_bs_log=>sel_message_param_id EQ lv_msg_param_id.
 
-    zz_cl_bs_log=>gui_docking_container->free( ).
-    CLEAR: zz_cl_bs_log=>gui_docking_container,
-           zz_cl_bs_log=>sel_message_param_id.
+    zxxx_cl_bs_log=>gui_docking_container->free( ).
+    CLEAR: zxxx_cl_bs_log=>gui_docking_container,
+           zxxx_cl_bs_log=>sel_message_param_id.
 
-  ELSEIF zz_cl_bs_log=>gui_docking_container IS NOT BOUND.
+  ELSEIF zxxx_cl_bs_log=>gui_docking_container IS NOT BOUND.
 
-    CREATE OBJECT zz_cl_bs_log=>gui_docking_container
+    CREATE OBJECT zxxx_cl_bs_log=>gui_docking_container
       EXPORTING
         side      = cl_gui_docking_container=>dock_at_bottom
         extension = '120'.
-    zz_cl_bs_log=>gui_docking_container->set_visible( abap_true ).
+    zxxx_cl_bs_log=>gui_docking_container->set_visible( abap_true ).
 
   ENDIF.
 
-  CHECK zz_cl_bs_log=>gui_docking_container IS BOUND.
+  CHECK zxxx_cl_bs_log=>gui_docking_container IS BOUND.
 
-  CREATE OBJECT zz_cl_bs_log=>gui_alv_grid
+  CREATE OBJECT zxxx_cl_bs_log=>gui_alv_grid
     EXPORTING
-      i_parent = zz_cl_bs_log=>gui_docking_container.
+      i_parent = zxxx_cl_bs_log=>gui_docking_container.
 
   DATA(ls_layout) = VALUE lvc_s_layo( cwidth_opt = 'X'
                                       sel_mode   = 'D' ).
@@ -80,7 +80,7 @@ FORM on_click_msg_detail TABLES i_params STRUCTURE spar.
 
   CHECK <lt_outtab> IS ASSIGNED.
 
-  zz_cl_bs_log=>gui_alv_grid->set_table_for_first_display(
+  zxxx_cl_bs_log=>gui_alv_grid->set_table_for_first_display(
     EXPORTING
       i_structure_name     = ls_structure_name
       is_layout            = ls_layout
@@ -88,6 +88,6 @@ FORM on_click_msg_detail TABLES i_params STRUCTURE spar.
     CHANGING
       it_outtab            = <lt_outtab> ).
 
-  zz_cl_bs_log=>sel_message_param_id = lv_msg_param_id.
+  zxxx_cl_bs_log=>sel_message_param_id = lv_msg_param_id.
 
 ENDFORM.
