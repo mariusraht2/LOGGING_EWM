@@ -103,6 +103,12 @@
      <MSGNR>015</MSGNR>
      <TEXT>Message (Type: &amp;1) with following text couldn&apos;t be written into the log:</TEXT>
     </T100>
+    <T100>
+     <SPRSL>E</SPRSL>
+     <ARBGB>ZXXX_LOG</ARBGB>
+     <MSGNR>016</MSGNR>
+     <TEXT>No log instance initialized: Please call static method INIT first.</TEXT>
+    </T100>
    </T100>
   </asx:values>
  </asx:abap>

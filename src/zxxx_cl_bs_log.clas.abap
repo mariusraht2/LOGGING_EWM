@@ -8,9 +8,10 @@ CLASS zxxx_cl_bs_log DEFINITION
            s_input_parameters TYPE rsra_s_parameter,
            t_input_parameters TYPE rsra_t_alert_definition.
 
-    CONSTANTS: c_msg_ident       TYPE c LENGTH 9 VALUE 'MSG_IDENT',
-               c_log_number      TYPE spo_par VALUE '%LOGNUMBER',
-               c_dflt_log_object TYPE balobj_d VALUE '/SCWM/WME'.
+    CONSTANTS: c_msg_ident         TYPE c LENGTH 9 VALUE 'MSG_IDENT',
+               c_log_number        TYPE spo_par VALUE '%LOGNUMBER',
+               c_dflt_log_object   TYPE balobj_d VALUE '/SCWM/WME',
+               c_log_subobject_log TYPE balobj_d VALUE 'LOG'.
 
     CLASS-DATA: gui_docking_container TYPE REF TO  cl_gui_docking_container,
                 gui_alv_grid          TYPE REF TO  cl_gui_alv_grid,
@@ -25,7 +26,8 @@ CLASS zxxx_cl_bs_log DEFINITION
         !iv_subobject      TYPE balsubobj
         !iv_extnumber      TYPE balnrext OPTIONAL
         !it_extnumber_list TYPE stringtab OPTIONAL
-        !iv_lgnum          TYPE /scwm/lgnum
+        !iv_lgnum          TYPE /scwm/lgnum OPTIONAL
+        !io_sap_log        TYPE REF TO /scwm/cl_log OPTIONAL
       RETURNING
         VALUE(ro_instance) TYPE REF TO zxxx_cl_bs_log.
     CLASS-METHODS to_msgde
@@ -42,7 +44,7 @@ CLASS zxxx_cl_bs_log DEFINITION
         VALUE(rt_protocol) TYPE bapirettab .
     METHODS set_sap_log
       IMPORTING
-        !io_log TYPE REF TO /scwm/cl_log .
+        !io_log TYPE REF TO /scwm/cl_log OPTIONAL.
     METHODS log_message
       IMPORTING
         msgde TYPE t_input_parameters OPTIONAL.
@@ -154,8 +156,6 @@ CLASS zxxx_cl_bs_log DEFINITION
     CONSTANTS log_process_save TYPE char4 VALUE 'SAVE' ##NO_TEXT.
     CONSTANTS log_process_exception TYPE char4 VALUE 'EXCP' ##NO_TEXT.
 
-    CLASS-METHODS add_new_instance.
-
     METHODS add_msg_to_log_protocol
       IMPORTING
         !is_msg_handle TYPE balmsghndl .
@@ -235,6 +235,16 @@ CLASS zxxx_cl_bs_log IMPLEMENTATION.
 
   METHOD add_msg_by_message_object.
 
+    IF sap_log IS BOUND.
+      sap_log->add_message( ip_msgty = message_type
+                            ip_msgid = message_class
+                            ip_msgno = message_number
+                            ip_msgv1 = message_var1
+                            ip_msgv2 = message_var2
+                            ip_msgv3 = message_var3
+                            ip_msgv4 = message_var4 ).
+    ENDIF.
+
     DATA(ls_msg) = VALUE bal_s_msg( msgty     = message_type
                                     probclass = message_priority
                                     context   = message_context
@@ -279,6 +289,11 @@ CLASS zxxx_cl_bs_log IMPLEMENTATION.
 
 
   METHOD add_msg_by_message_text.
+
+    IF sap_log IS BOUND.
+      sap_log->add_message( ip_msgty = message_type
+                            ip_msg   = CONV #( message_text ) ).
+    ENDIF.
 
     DATA(ls_msg_handle) = VALUE balmsghndl( ).
 
@@ -338,16 +353,21 @@ CLASS zxxx_cl_bs_log IMPLEMENTATION.
                                                                  message_v2 = msgv2
                                                                  message_v3 = msgv3
                                                                  message_v4 = msgv4 ).
+
+      CALL FUNCTION 'BAPI_MESSAGE_GETDETAIL'
+        EXPORTING
+          id         = ls_msg-msgid
+          number     = ls_msg-msgno
+          textformat = 'RTF'
+          message_v1 = ls_msg-msgv1
+          message_v2 = ls_msg-msgv2
+          message_v3 = ls_msg-msgv3
+          message_v4 = ls_msg-msgv4
+        IMPORTING
+          message    = ls_bapiret2-message.
+
       APPEND ls_bapiret2 TO log_protocol.
     ENDIF.
-
-  ENDMETHOD.
-
-
-  METHOD add_new_instance.
-
-    instance = NEW zxxx_cl_bs_log( ).
-    APPEND instance TO log_stack.
 
   ENDMETHOD.
 
@@ -459,52 +479,35 @@ CLASS zxxx_cl_bs_log IMPLEMENTATION.
 
   METHOD create_message.
 
-    IF sap_log IS BOUND.
+    CALL METHOD set_content
+      EXPORTING
+        msgtx = msgtx
+        msgno = msgno
+        msgv1 = msgv1
+        msgv2 = msgv2
+        msgv3 = msgv3
+        msgv4 = msgv4.
 
-      CALL METHOD sap_log->add_message2log
-        EXPORTING
-          ip_msgty = message_type
-          ip_msg   = CONV #( msgtx )
-          ip_msgid = message_class
-          ip_msgno = msgno
-          ip_msgv1 = msgv1
-          ip_msgv2 = msgv2
-          ip_msgv3 = msgv3
-          ip_msgv4 = msgv4.
+    message_detail_input = msgde.
 
-    ELSE.
+    CALL METHOD set_context.
 
-      CALL METHOD set_content
-        EXPORTING
-          msgtx = msgtx
-          msgno = msgno
-          msgv1 = msgv1
-          msgv2 = msgv2
-          msgv3 = msgv3
-          msgv4 = msgv4.
+    CALL METHOD set_priority.
 
-      message_detail_input = msgde.
+    CALL METHOD add_message_detail.
 
-      CALL METHOD set_context.
+    ADD 1 TO log_counter.
 
-      CALL METHOD set_priority.
+    CASE content_type.
+      WHEN 1.
+        CALL METHOD add_msg_by_message_text.
 
-      CALL METHOD add_message_detail.
+      WHEN 2.
+        CALL METHOD add_msg_by_message_object.
 
-      ADD 1 TO log_counter.
+    ENDCASE.
 
-      CASE content_type.
-        WHEN 1.
-          CALL METHOD add_msg_by_message_text.
-
-        WHEN 2.
-          CALL METHOD add_msg_by_message_object.
-
-      ENDCASE.
-
-      CLEAR: message_params.
-
-    ENDIF.
+    CLEAR: message_params.
 
   ENDMETHOD.
 
@@ -593,7 +596,7 @@ CLASS zxxx_cl_bs_log IMPLEMENTATION.
 
     init( iv_object    = c_dflt_log_object
           iv_subobject = 'LOG'
-          iv_extnumber = 'Logging: Fehlerbehandlung'
+          iv_extnumber = 'Logging: Error Handling'
           iv_lgnum     = lgnum ).
 
     MESSAGE e000(zxxx_log) WITH iv_process INTO lv_msg.
@@ -707,17 +710,17 @@ CLASS zxxx_cl_bs_log IMPLEMENTATION.
 
   METHOD get_instance.
 
-*    ASSERT log_stack IS NOT INITIAL.
-*
-*    instance = log_stack[ lines( log_stack ) ].
-*
-*    ro_instance = instance.
+    IF log_stack IS INITIAL.
+      " Please initialize a log instance first: ZIOT_CL_BS_LOG=>INIT( ... ).
+      RAISE EXCEPTION TYPE zxxx_exc_log_instance_missing.
+    ENDIF.
 
     IF log_stack IS INITIAL.
 
       IF instance IS NOT BOUND.
 
-        add_new_instance( ).
+        instance = NEW zxxx_cl_bs_log( ).
+        APPEND instance TO log_stack.
 
       ENDIF.
 
@@ -733,6 +736,11 @@ CLASS zxxx_cl_bs_log IMPLEMENTATION.
 
 
   METHOD get_protocol.
+
+    IF instance IS NOT BOUND.
+      " Please initialize a log instance first: ZXXX_CL_BS_LOG=>INIT( ... ).
+      RAISE EXCEPTION TYPE zxxx_exc_log_instance_missing.
+    ENDIF.
 
     rt_protocol = log_protocol.
 
@@ -758,16 +766,19 @@ CLASS zxxx_cl_bs_log IMPLEMENTATION.
 
   METHOD init.
 
-    add_new_instance( ).
+    instance = NEW zxxx_cl_bs_log( ).
+    APPEND instance TO log_stack.
 
     GET TIME STAMP FIELD instance->process_start.
 
     instance->lgnum                = iv_lgnum.
     instance->log_header-object    = iv_object.
     instance->log_header-subobject = iv_subobject.
+    instance->log_header-aluser    = sy-uname.
+    instance->log_header-aldate    = sy-datum.
+    instance->log_header-altime    = sy-uzeit.
 
-    CLEAR: instance->caller.
-    CALL METHOD instance->det_caller.
+    instance->set_sap_log( io_sap_log ).
 
     CALL METHOD instance->build_extnumber
       EXPORTING
@@ -791,14 +802,14 @@ CLASS zxxx_cl_bs_log IMPLEMENTATION.
 
     IF    sy-subrc <> 0
       AND has_error EQ abap_false.
-
       CALL METHOD instance->error_handling
         EXPORTING
           iv_process = log_process_init
           iv_subrc   = sy-subrc.
-
     ENDIF.
 
+    CLEAR: instance->caller.
+    CALL METHOD instance->det_caller.
     CALL METHOD instance->log_caller.
 
     ro_instance = instance.
@@ -808,11 +819,10 @@ CLASS zxxx_cl_bs_log IMPLEMENTATION.
 
   METHOD set_sap_log.
 
-    IF    io_log IS BOUND
-      AND io_log IS NOT INITIAL.
-
+    IF io_log IS BOUND.
       sap_log = io_log.
-
+    ELSE.
+      CLEAR: sap_log.
     ENDIF.
 
   ENDMETHOD.
