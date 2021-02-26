@@ -8,10 +8,10 @@ CLASS zxxx_cl_bs_log DEFINITION
            s_input_parameters TYPE rsra_s_parameter,
            t_input_parameters TYPE rsra_t_alert_definition.
 
-    CONSTANTS: c_msg_ident         TYPE c LENGTH 9 VALUE 'MSG_IDENT',
-               c_log_number        TYPE spo_par VALUE '%LOGNUMBER',
-               c_dflt_log_object   TYPE balobj_d VALUE '/SCWM/WME',
-               c_log_subobject_log TYPE balobj_d VALUE 'LOG'.
+    CONSTANTS: mc_msg_ident         TYPE c LENGTH 9 VALUE 'MSG_IDENT',
+               mc_log_number        TYPE spo_par VALUE '%LOGNUMBER',
+               mc_dflt_log_object   TYPE balobj_d VALUE '/SCWM/WME',
+               mc_log_subobject_log TYPE balobj_d VALUE 'LOG'.
 
     CLASS-DATA: gui_docking_container TYPE REF TO  cl_gui_docking_container,
                 gui_alv_grid          TYPE REF TO  cl_gui_alv_grid,
@@ -22,7 +22,7 @@ CLASS zxxx_cl_bs_log DEFINITION
         VALUE(ro_instance) TYPE REF TO zxxx_cl_bs_log.
     CLASS-METHODS init
       IMPORTING
-        !iv_object         TYPE balobj_d DEFAULT c_dflt_log_object
+        !iv_object         TYPE balobj_d DEFAULT mc_dflt_log_object
         !iv_subobject      TYPE balsubobj
         !iv_extnumber      TYPE balnrext OPTIONAL
         !it_extnumber_list TYPE stringtab OPTIONAL
@@ -222,7 +222,7 @@ CLASS zxxx_cl_bs_log IMPLEMENTATION.
     message_params-callback-userexitt = ' '.
 
     message_param_id = message_param_id + 1.
-    APPEND VALUE #( parname  = c_msg_ident
+    APPEND VALUE #( parname  = mc_msg_ident
                     parvalue = message_param_id ) TO message_params-t_par.
 
     APPEND VALUE #( v_id              = message_param_id
@@ -594,7 +594,7 @@ CLASS zxxx_cl_bs_log IMPLEMENTATION.
 *** Bestehendes Log abschließen und neues für Fehlerbehandlung erzeugen
     save( ).
 
-    init( iv_object    = c_dflt_log_object
+    init( iv_object    = mc_dflt_log_object
           iv_subobject = 'LOG'
           iv_extnumber = 'Logging: Error Handling'
           iv_lgnum     = lgnum ).
@@ -711,8 +711,8 @@ CLASS zxxx_cl_bs_log IMPLEMENTATION.
   METHOD get_instance.
 
     IF log_stack IS INITIAL.
-      " Please initialize a log instance first: ZIOT_CL_BS_LOG=>INIT( ... ).
-      RAISE EXCEPTION TYPE zxxx_exc_log_instance_missing.
+      " Please initialize a log instance by calling method INIT first.
+      RAISE EXCEPTION TYPE zcx_log_instance_missing.
     ENDIF.
 
     IF log_stack IS INITIAL.
@@ -738,8 +738,8 @@ CLASS zxxx_cl_bs_log IMPLEMENTATION.
   METHOD get_protocol.
 
     IF instance IS NOT BOUND.
-      " Please initialize a log instance first: ZXXX_CL_BS_LOG=>INIT( ... ).
-      RAISE EXCEPTION TYPE zxxx_exc_log_instance_missing.
+      " Please initialize a log instance by calling method INIT first.
+      RAISE EXCEPTION TYPE zcx_log_instance_missing.
     ENDIF.
 
     rt_protocol = log_protocol.
